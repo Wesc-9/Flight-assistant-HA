@@ -9,16 +9,16 @@ from .const import ENTUR_URL
 
 _LOGGER = logging.getLogger(__name__)
 
-async def get_waze_minutes(hass, origin: tuple, destination: tuple) -> float | None:
+async def get_waze_minutes(hass, origin: tuple | str, destination: tuple) -> float | None:
     """Use HA's own Waze action if the integration is installed."""
     if not hass.services.has_service("waze_travel_time", "get_travel_times"):
         return None
     try:
         result = await hass.services.async_call(
             "waze_travel_time", "get_travel_times",
-            {"origin": f"{origin[0]},{origin[1]}",
+            {"origin": origin if isinstance(origin, str) else f"{origin[0]},{origin[1]}",
              "destination": f"{destination[0]},{destination[1]}",
-             "region": "eu", "realtime": True, "units": "metric"},
+             "region": "eu"},
             blocking=True, return_response=True,
         )
         values = [route.get("duration") for route in (result or {}).get("routes", [])

@@ -5,6 +5,9 @@ from datetime import timedelta
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
+from homeassistant.helpers.device_registry import DeviceInfo
+from .const import DOMAIN
+from .planning import time_progress_percent
 from .parsing import parse_datetime
 
 async def async_setup_entry(hass, entry, async_add_entities):
@@ -15,13 +18,14 @@ async def async_setup_entry(hass, entry, async_add_entities):
         additions = []
         for uid in coordinator.flights:
             if uid not in active:
-                sensor = FlightSensor(coordinator, uid)
-                active[uid] = sensor
-                additions.append(sensor)
+                flight_sensor = FlightSensor(coordinator, uid)
+                countdown = FlightCountdownSensor(coordinator, uid)
+                active[uid] = (flight_sensor, countdown)
+                additions.extend([flight_sensor, countdown])
         for uid in list(active):
             if uid not in coordinator.flights:
-                sensor = active.pop(uid)
-                hass.async_create_task(sensor.async_remove())
+                for sensor in active.pop(uid):
+                    hass.async_create_task(sensor.async_remove())
         if additions:
             async_add_entities(additions)
 
@@ -36,6 +40,13 @@ class FlightSensor(CoordinatorEntity, SensorEntity):
         super().__init__(coordinator)
         self.uid = uid
         self._attr_unique_id = f"{coordinator.entry.entry_id}_{uid}"
+        record = coordinator.flights.get(uid, {})
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, uid)},
+            name=f"{record.get('flight_number', 'Flight')} {record.get('origin', '')} travel",
+            manufacturer="Flight Assistant",
+            model="Flight itinerary",
+        )
 
     @property
     def name(self):
@@ -52,6 +63,29 @@ class FlightSensor(CoordinatorEntity, SensorEntity):
         item = self.coordinator.flights.get(self.uid, {})
         return {**item, **self.coordinator.transport.get(self.uid, {}),
                 "attribution": "Flydata fra Avinor – https://www.avinor.no"}
+
+class FlightCountdownSensor(FlightSensor):
+    """Countdown in minutes, linked to the same HA flight device."""
+    _attr_icon = "mdi:timer-outline"
+    _attr_native_unit_of_measurement = "min"
+
+    def __init__(self, coordinator, uid):
+        super().__init__(coordinator, uid)
+        self._attr_unique_id = f"{coordinator.entry.entry_id}_{uid}_countdown"
+
+    @property
+    def name(self):
+        return f"{super().name} minutes to departure"
+
+    @property
+    def native_value(self):
+        record = self.coordinator.flights.get(self.uid, {})
+        depart = parse_datetime(record.get("scheduled"))
+        return round(max(0, (depart - dt_util.utcnow()).total_seconds()) / 60) if depart else None
+
+    @property
+    def extra_state_attributes(self):
+        return {}
 
 class NextFlightSensor(CoordinatorEntity, SensorEntity):
     _attr_name = "Flight Assistant Next Flight"
@@ -84,8 +118,19 @@ class NextFlightSensor(CoordinatorEntity, SensorEntity):
         flight = self._next
         if not flight:
             return {"count": len(self.coordinator.flights)}
+        arrival = parse_datetime(flight.get("arrival_scheduled"))
+        departure = parse_datetime(flight.get("scheduled"))
+        airborne = flight.get("status") == "Departed"
         return {
             **flight, **self.coordinator.transport.get(flight["id"], {}),
             "count": len(self.coordinator.flights),
+            "minutes_to_departure": (round((departure - dt_util.utcnow()).total_seconds() / 60)
+                                     if departure else None),
+            "airborne": airborne,
+            "estimated_journey_progress_percent": (
+                time_progress_percent(departure, arrival, dt_util.utcnow())
+                if airborne and departure and arrival else None
+            ),
+            "aircraft_live_position_available": False,
             "attribution": "Flydata fra Avinor – https://www.avinor.no",
         }

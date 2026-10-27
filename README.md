@@ -1,5 +1,7 @@
 # Flight Assistant for Home Assistant
 
+**Development version: 0.2.0** — one Home Assistant device per saved trip, three arrival-time travel proposals and per-trip travel preferences. Airline PNR lookup and actual position tracking are not yet implemented.
+
 An early, installable Home Assistant custom integration for following SAS and Norwegian flights, including **Avinor flight status**, **gate and check-in area** (when supplied), **Entur public transport suggestions** and optional **Waze driving departure suggestions**.
 
 > **Important:** Version 0.1.0 cannot retrieve an airline booking using only a PNR/booking reference and surname. SAS/Norwegian do not provide a verified, openly accessible passenger-booking API for this use. Do **not** enter PNRs, surnames or passwords in Home Assistant actions. No fabricated booking lookup, scraping of private endpoints or credential collection is included. The PNR-first workflow is a later development goal, contingent on an authorized method.
@@ -21,12 +23,34 @@ data:
   scheduled: "2026-11-02T12:30:00+01:00"
 ```
 
+You may specify per-trip preferences. For instance:
+```yaml
+action: flight_assistant.add_flight
+data:
+  flight_number: SK345
+  origin: TRD
+  destination: OSL
+  scheduled: "2026-11-02T12:30:00+01:00"
+  arrival_scheduled: "2026-11-02T13:30:00+01:00"
+  journey_type: domestic
+  checked_bag: true
+  airport_margin_minutes: 90
+  transport_mode: both
+  departure_address: "YOUR ADDRESS"
+  departure_latitude: 63.4
+  departure_longitude: 10.4
+```
+
+The exact values above are illustrative, not a real trip or a verified address. When using a custom address, enter real corresponding coordinates for Entur. Without coordinates, Waze may accept the address, but public transport results are unavailable; we will implement address search later.
+
+**Default airport arrival targets:** 90 min before departure for domestic, 120 min for international. Both are user-adjustable in 15-minute steps between 45 and 240 min. Check actual airline deadlines separately; these are not guarantees. Baggage options affect how conservatively a later suggestion is displayed. All suggestions are anchored to the original scheduled flight time.
+
 The **scheduled** value must be an actual departure from your ticket, with its local UTC offset; example values above are illustrative, not an actual timetable. An origin IATA code is required to query Avinor.
 
 ### Entities
 
 - `sensor.flight_assistant_next_flight` — next flight, flight status, gate, check-in area, planned/updated times and suggested departures in its attributes.
-- One sensor for each saved flight. The `id` attribute identifies the flight for removal.
+- One device per saved flight with a flight status sensor and a countdown sensor. Each device is linked to the integration. The `id` attribute identifies the flight for removal.
 
 To remove a trip:
 ```yaml
@@ -46,6 +70,14 @@ data:
 ### Airports with travel-coordinate support
 
 TRD, OSL, BGO, SVG, TOS, BOO, AES, KRS, EVE, ALF, LYR, HAU, MOL, KSU, BDU, KKN and TRF. Other Avinor airports still work for flight status; transport suggestions require a terminal coordinate to be added in `const.py`. Coordinates are approximate terminals, not precise car drop-off points.
+
+### Three suggestions per booking
+
+`travel_suggestions` is exposed as the `suggestions` attribute of each flight sensor. Arrival windows are **good time** (30 minutes earlier than selected), **recommended** (exact selected margin) and **later** (30 minutes later if a conservative margin floor is satisfied). Each contains a Waze-derived driving time and/or a validated Entur itinerary when available; unsupported means `null`, never a fake departure. Only recommendation #2 is used for leave reminders. A third suggestion may be absent.
+
+The current integration is managed as one configured Flight Assistant instance, while every manually saved flight has its own Home Assistant device. A per-device **Add booking reference + surname** wizard and airline itinerary resolver are pending authorized airline access; it would be unsafe and misleading to invent the returned booking.
+
+Flight progress is an optional **schedule-based estimated percentage** if actual departed status and a manually provided arrival schedule exist. It is **not aircraft GPS location**. A later flight tracker integration is required before showing a plane moving on a real map.
 
 ### Home Assistant events
 
@@ -78,6 +110,6 @@ Events fire only while Home Assistant is running; this release does not guarante
 - [Avinor: flight-data and required attribution](https://partner.avinor.no/en/services/flight-data/): **[Flydata fra Avinor](https://www.avinor.no)**. Published codes and scheduled timestamps are UTC; Home Assistant displays ISO timestamps with offsets.
 - [Entur Journey Planner v3](https://developer.entur.no/docs/open-services/journey-planner): requires `ET-Client-Name` and provides public transport itineraries in Norway.
 - [Waze Travel Time action](https://www.home-assistant.io/actions/waze_travel_time.get_travel_times/): optional integration.
-- **Not in 0.1.0:** PNR/surname lookup, personal check-in completion status, boarding passes, automatic email importing, international non-Avinor airports, real-time airborne position, multi-segment automatic import and a custom dashboard card.
+- **Not in 0.2.0:** PNR/surname lookup, personal check-in completion status, boarding passes, automatic email importing, international non-Avinor airports, real-time airborne position, multi-segment automatic import and a custom dashboard card.
 
 This is a first implementation. API interoperability has not yet been validated against a live Home Assistant installation or a real passenger booking. Please report issues in this repository. Do not rely on suggestions as your only source when catching a flight.

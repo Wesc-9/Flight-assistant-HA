@@ -1,0 +1,12 @@
+{
+  "domain": "flight_assistant",
+  "name": "Flight Assistant",
+  "version": "0.1.0",
+  "documentation": "https://github.com/Wesc-9/Flight-assistant-HA",
+  "issue_tracker": "https://github.com/Wesc-9/Flight-assistant-HA/issues",
+  "codeowners": ["@Wesc-9"],
+  "config_flow": true,
+  "single_config_entry": true,
+  "iot_class": "cloud_polling",
+  "requirements": []
+}

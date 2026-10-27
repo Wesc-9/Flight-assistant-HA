@@ -1,0 +1,59 @@
+{
+  "title": "Flight Assistant",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up Flight Assistant",
+        "description": "Uses your selected origin location for driving and public transport recommendations. Flights are added under Developer tools → Actions after setup.",
+        "data": {
+          "home_latitude": "Home latitude",
+          "home_longitude": "Home longitude",
+          "airport_margin_minutes": "Arrive at the airport this many minutes before the scheduled departure",
+          "drive_buffer_minutes": "Extra minutes for driving, parking and walking"
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Flight Assistant preferences",
+        "data": {
+          "home_latitude": "Home latitude",
+          "home_longitude": "Home longitude",
+          "airport_margin_minutes": "Airport arrival margin (minutes)",
+          "drive_buffer_minutes": "Driving/parking buffer (minutes)"
+        }
+      }
+    }
+  },
+  "services": {
+    "add_flight": {
+      "name": "Add a flight",
+      "description": "Add a SAS or Norwegian flight and start monitoring.",
+      "fields": {
+        "flight_number": {
+          "name": "Flight number"
+        },
+        "origin": {
+          "name": "Departure airport"
+        },
+        "scheduled": {
+          "name": "Scheduled departure with timezone"
+        },
+        "destination": {
+          "name": "Destination airport (optional)"
+        }
+      }
+    },
+    "remove_flight": {
+      "name": "Remove a flight",
+      "description": "Delete a saved flight.",
+      "fields": {
+        "flight_id": {
+          "name": "Flight id"
+        }
+      }
+    }
+  }
+}

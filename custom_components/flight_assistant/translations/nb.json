@@ -1,0 +1,59 @@
+{
+  "title": "Flight Assistant",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Konfigurer Flight Assistant",
+        "description": "Bruker valgt hjemmeadresse (koordinater) til reiseberegninger. Legg til fly under Utviklerverktøy → Handlinger.",
+        "data": {
+          "home_latitude": "Hjemmebreddegrad",
+          "home_longitude": "Hjemmelengdegrad",
+          "airport_margin_minutes": "Minutter på flyplassen før planlagt avgang",
+          "drive_buffer_minutes": "Ekstra minutter for bil, parkering og gange"
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Innstillinger for Flight Assistant",
+        "data": {
+          "home_latitude": "Hjemmebreddegrad",
+          "home_longitude": "Hjemmelengdegrad",
+          "airport_margin_minutes": "Margin på flyplassen (minutter)",
+          "drive_buffer_minutes": "Buffer for bil og parkering (minutter)"
+        }
+      }
+    }
+  },
+  "services": {
+    "add_flight": {
+      "name": "Legg til flyreise",
+      "description": "Legg inn flynummer og følg flyreisen.",
+      "fields": {
+        "flight_number": {
+          "name": "Flynummer"
+        },
+        "origin": {
+          "name": "Avreiseflyplass"
+        },
+        "scheduled": {
+          "name": "Planlagt avgang med tidssone"
+        },
+        "destination": {
+          "name": "Destinasjon (valgfri)"
+        }
+      }
+    },
+    "remove_flight": {
+      "name": "Fjern flyreise",
+      "description": "Slett en lagret flyreise.",
+      "fields": {
+        "flight_id": {
+          "name": "Reise-ID"
+        }
+      }
+    }
+  }
+}

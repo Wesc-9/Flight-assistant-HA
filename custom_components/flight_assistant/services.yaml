@@ -1,0 +1,32 @@
+add_flight:
+  name: Add a flight
+  description: Add a SAS or Norwegian flight manually for automatic Avinor and travel updates. Booking reference lookup is not yet supported.
+  fields:
+    flight_number:
+      required: true
+      example: "SK345"
+      selector:
+        text:
+    origin:
+      required: true
+      example: "TRD"
+      selector:
+        text:
+    scheduled:
+      required: true
+      example: "2026-11-02T12:30:00+01:00"
+      selector:
+        text:
+    destination:
+      required: false
+      example: "OSL"
+      selector:
+        text:
+remove_flight:
+  name: Remove a flight
+  description: Remove a flight by its id from a Flight Assistant sensor attribute.
+  fields:
+    flight_id:
+      required: true
+      selector:
+        text:

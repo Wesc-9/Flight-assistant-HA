@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 import re
 import xml.etree.ElementTree as ET
 
-FLIGHT_RE = re.compile(r"^(?:SK|DY|D8|WF)\s?\\d{1,5}[A-Z]?$", re.IGNORECASE)
+FLIGHT_RE = re.compile(r"^(?:SK|DY|D8|WF)\s?\d{1,5}[A-Z]?$", re.IGNORECASE)
 IATA_RE = re.compile(r"^[A-Z]{3}$")
 STATUS_CODES = {"A": "Arrived", "C": "Cancelled", "D": "Departed",
                 "E": "New time", "N": "New information"}

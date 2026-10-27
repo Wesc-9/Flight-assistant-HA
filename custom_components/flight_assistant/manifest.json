@@ -1,7 +1,7 @@
 {
   "domain": "flight_assistant",
   "name": "Flight Assistant",
-  "version": "0.2.0",
+  "version": "0.1.0",
   "documentation": "https://github.com/Wesc-9/Flight-assistant-HA",
   "issue_tracker": "https://github.com/Wesc-9/Flight-assistant-HA/issues",
   "codeowners": [

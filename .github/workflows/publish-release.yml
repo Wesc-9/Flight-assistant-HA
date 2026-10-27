@@ -1,0 +1,75 @@
+name: Publish versioned GitHub release
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - custom_components/flight_assistant/manifest.json
+      - .github/workflows/publish-release.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: flight-assistant-release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Check Python syntax
+        run: python -m compileall -q custom_components tests
+      - name: Run parser and planning tests
+        run: python -m unittest discover -s tests -v
+      - name: Read release version from manifest
+        id: manifest
+        shell: bash
+        run: |
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import re
+          from pathlib import Path
+          path = Path("custom_components/flight_assistant/manifest.json")
+          version = json.loads(path.read_text(encoding="utf-8"))["version"]
+          if not re.fullmatch(r"\d+\.\d+\.\d+", version):
+              raise SystemExit("Version must be in major.minor.patch format")
+          print("version=" + version)
+          PY
+      - name: Publish GitHub Release matching manifest version
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.manifest.outputs.version }}
+        run: |
+          set -euo pipefail
+          tag="v${VERSION}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Published release $tag already exists, no duplicate needed."
+            exit 0
+          fi
+          cat > /tmp/flight-assistant-notes.md <<'NOTES'
+          Flight Assistant for Home Assistant — first test release.
+
+          Features:
+          - Each manually saved flight has its own Home Assistant device and sensors.
+          - Flight status, departure information, gate and check-in area via Avinor where available.
+          - Optional driving and public transport recommendations using Waze and Entur.
+          - Three configurable departure scenarios with domestic/international airport margins.
+          - Countdown sensor and Home Assistant events for notifications.
+          - HACS installation button and user documentation.
+
+          Limitations:
+          - SAS/Norwegian booking-reference (PNR) and surname import is not implemented.
+          - Airline personal check-in state, boarding pass retrieval, and live aircraft GPS tracking are not implemented.
+          - Real HA integration/API compatibility must still be validated before depending on these suggestions.
+          - Manual flight details are required for now.
+
+          Please create a Home Assistant backup before installing an early version.
+          NOTES
+          gh release create "$tag" --target "$GITHUB_SHA" --title "$tag — Flight Assistant" --notes-file /tmp/flight-assistant-notes.md --latest

@@ -4,11 +4,17 @@
 
 **[Åpne Flight Assistant direkte i HACS](https://my.home-assistant.io/redirect/hacs_repository/?owner=Wesc-9&repository=Flight-assistant-HA&category=integration)**
 
-**Development version: 0.2.0** — one Home Assistant device per saved trip, three arrival-time travel proposals and per-trip travel preferences. Airline PNR lookup and actual position tracking are not yet implemented.
+**First published release: v0.1.0** — one Home Assistant device per saved trip, three arrival-time travel proposals and per-trip travel preferences. Airline PNR lookup and actual position tracking are not yet implemented.
 
 An early, installable Home Assistant custom integration for following SAS and Norwegian flights, including **Avinor flight status**, **gate and check-in area** (when supplied), **Entur public transport suggestions** and optional **Waze driving departure suggestions**.
 
-> **Important:** Version 0.2.0 cannot retrieve an airline booking using only a PNR/booking reference and surname. SAS/Norwegian do not provide a verified, openly accessible passenger-booking API for this use. Do **not** enter PNRs, surnames or passwords in Home Assistant actions. No fabricated booking lookup, scraping of private endpoints or credential collection is included. The PNR-first workflow is a later development goal, contingent on an authorized method.
+> **Important:** Version 0.1.0 cannot retrieve an airline booking using only a PNR/booking reference and surname. SAS/Norwegian do not provide a verified, openly accessible passenger-booking API for this use. Do **not** enter PNRs, surnames or passwords in Home Assistant actions. No fabricated booking lookup, scraping of private endpoints or credential collection is included. The PNR-first workflow is a later development goal, contingent on an authorized method.
+
+## Releases and updates
+
+**First release: [v0.1.0](https://github.com/Wesc-9/Flight-assistant-HA/releases/tag/v0.1.0).** This is a first-test release, not a completed automatic PNR booking assistant. Future updates will be published as new GitHub Releases with tags matching `custom_components/flight_assistant/manifest.json`, for example `v0.1.1`, `v0.1.2`.
+
+HACS can recognize these published release tags and show updates. If Flight Assistant was previously installed from the default branch before the first release existed, manually use **Redownload** in HACS and select **v0.1.0** to switch to versioned releases. Read the GitHub release notes before upgrading. Restart Home Assistant after each update.
 
 ## Installation (Home Assistant OS)
 
@@ -126,6 +132,6 @@ The definitive product design and outstanding phases are recorded in [docs/PRODU
 - [Avinor: flight-data and required attribution](https://partner.avinor.no/en/services/flight-data/): **[Flydata fra Avinor](https://www.avinor.no)**. Published codes and scheduled timestamps are UTC; Home Assistant displays ISO timestamps with offsets.
 - [Entur Journey Planner v3](https://developer.entur.no/docs/open-services/journey-planner): requires `ET-Client-Name` and provides public transport itineraries in Norway.
 - [Waze Travel Time action](https://www.home-assistant.io/actions/waze_travel_time.get_travel_times/): optional integration.
-- **Not in 0.2.0:** PNR/surname lookup, personal check-in completion status, boarding passes, automatic email importing, international non-Avinor airports, real-time airborne position, multi-segment automatic import and a custom dashboard card.
+- **Not in 0.1.0:** PNR/surname lookup, personal check-in completion status, boarding passes, automatic email importing, international non-Avinor airports, real-time airborne position, multi-segment automatic import and a custom dashboard card.
 
 This is a first implementation. API interoperability has not yet been validated against a live Home Assistant installation or a real passenger booking. Please report issues in this repository. Do not rely on suggestions as your only source when catching a flight.

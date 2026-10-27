@@ -1,12 +1,22 @@
 # Flight Assistant for Home Assistant
 
+[![Åpne Flight Assistant i HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Wesc-9&repository=Flight-assistant-HA&category=integration)
+
+**[Åpne Flight Assistant direkte i HACS](https://my.home-assistant.io/redirect/hacs_repository/?owner=Wesc-9&repository=Flight-assistant-HA&category=integration)**
+
 **Development version: 0.2.0** — one Home Assistant device per saved trip, three arrival-time travel proposals and per-trip travel preferences. Airline PNR lookup and actual position tracking are not yet implemented.
 
 An early, installable Home Assistant custom integration for following SAS and Norwegian flights, including **Avinor flight status**, **gate and check-in area** (when supplied), **Entur public transport suggestions** and optional **Waze driving departure suggestions**.
 
-> **Important:** Version 0.1.0 cannot retrieve an airline booking using only a PNR/booking reference and surname. SAS/Norwegian do not provide a verified, openly accessible passenger-booking API for this use. Do **not** enter PNRs, surnames or passwords in Home Assistant actions. No fabricated booking lookup, scraping of private endpoints or credential collection is included. The PNR-first workflow is a later development goal, contingent on an authorized method.
+> **Important:** Version 0.2.0 cannot retrieve an airline booking using only a PNR/booking reference and surname. SAS/Norwegian do not provide a verified, openly accessible passenger-booking API for this use. Do **not** enter PNRs, surnames or passwords in Home Assistant actions. No fabricated booking lookup, scraping of private endpoints or credential collection is included. The PNR-first workflow is a later development goal, contingent on an authorized method.
 
 ## Installation (Home Assistant OS)
+
+**Enkel installasjon:** Klikk på knappen **Åpne i HACS** øverst på denne siden. Velg Home Assistant-instansen din, åpne Flight Assistant i HACS og trykk **Last ned**. Start Home Assistant på nytt, og gå til **Innstillinger → Enheter og tjenester → Legg til integrasjon → Flight Assistant**.
+
+> Knappen åpner integrasjonen i din egen HACS-installasjon. Den installerer ikke kode automatisk. Du må ha HACS installert, og bekrefte nedlastingen selv. Dersom knappen ikke fungerer, følg de manuelle stegene nedenfor.
+
+### Manuell installasjon
 
 1. HACS → three dots → **Custom repositories** → `https://github.com/Wesc-9/Flight-assistant-HA` → **Integration**.
 2. Install **Flight Assistant** and restart Home Assistant.

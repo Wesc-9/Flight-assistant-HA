@@ -1,0 +1,54 @@
+# Next trip dashboard card (Home Assistant built-in Markdown card)
+# Paste under: Dashboard -> Edit -> Add card -> Manual.
+# It assumes sensor.flight_assistant_next_flight is the actual entity ID.
+type: markdown
+title: "✈ Flight Assistant – neste reise"
+content: |
+  {% set entity = 'sensor.flight_assistant_next_flight' %}
+  {% set number = states(entity) %}
+  {% set depart = state_attr(entity, 'scheduled') %}
+  {% set scheduled = as_datetime(depart, none) if depart else none %}
+  {% if number not in ['unknown', 'unavailable', 'No upcoming flights'] and scheduled %}
+  ### {{ state_attr(entity, 'origin') or '—' }} → {{ state_attr(entity, 'destination') or '—' }}
+  **{{ number }}** · {{ as_local(scheduled).strftime('%a %d.%m %H:%M') }}
+
+  {% set remaining = ((as_timestamp(scheduled) - as_timestamp(now())) / 60) | round(0) | int %}
+  {% if remaining > 0 %}
+  **Avgang om {{ remaining // 1440 }}d {{ (remaining % 1440) // 60 }}t {{ remaining % 60 }}min**
+  {% else %}
+  **Planlagt avgangstid har passert**
+  {% endif %}
+
+  Status: **{{ state_attr(entity, 'status') or 'Ukjent' }}** · Gate: **{{ state_attr(entity, 'gate') or 'Ikke tildelt' }}**
+
+  {% set proposals = state_attr(entity, 'suggestions') or [] %}
+  {% set recommendation = proposals | selectattr('number', 'eq', 2) | list | first | default(none) %}
+  {% if recommendation %}
+  **Reiseforslag:**
+  {% for option in proposals %}
+  {{ option.number }}. **{{ 'God tid' if option.number == 1 else 'Anbefalt' if option.number == 2 else 'Sen avreise' }}** – på flyplassen senest {{ as_local(as_datetime(option.airport_arrival_target)).strftime('%H:%M') }}
+  {% if option.drive %}
+      🚗 Kjør hjemmefra {{ as_local(as_datetime(option.drive.leave_at)).strftime('%H:%M') }} (beregnet ved nåværende trafikk)
+  {% endif %}
+  {% if option.public_transport %}
+      🚌 Kollektiv avgang {{ as_local(as_datetime(option.public_transport.leave_at)).strftime('%H:%M') }}
+  {% endif %}
+  {% endfor %}
+  {% else %}
+  Reisetider beregnes nærmere avgang når kilder er tilgjengelige.
+  {% endif %}
+
+  {% if state_attr(entity, 'airborne') %}
+  {% set progress = state_attr(entity, 'estimated_journey_progress_percent') %}
+  **Flyet er registrert avgått.**
+  {% if progress is not none %}
+  Estimert fremdrift etter rutetid: **{{ progress }} %**
+  {{ '━' * (progress // 10) }}✈{{ '─' * (10 - (progress // 10)) }}
+
+  Beregnet rutetidsankomst: {{ as_local(as_datetime(state_attr(entity, 'arrival_scheduled'))).strftime('%H:%M') }}
+  {% endif %}
+  _Posisjonen er ikke GPS-sporet. Live flykart kommer i en senere versjon._
+  {% endif %}
+  {% else %}
+  Ingen kommende flyreiser registrert. Legg til flytur via Flight Assistant.
+  {% endif %}

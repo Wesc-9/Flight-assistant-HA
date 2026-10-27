@@ -45,7 +45,7 @@ def arrival_windows(
             "airline_deadlines_verified": False,
         }
         for number, kind, margin in candidates
-        if margin >= floor and margin >= 45
+        if margin >= 45 and (kind != "later" or margin >= floor)
     ]
 
 def driving_leave_at(arrival_target: datetime, road_minutes: float, parking_buffer: int) -> str:

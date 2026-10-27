@@ -26,6 +26,10 @@ class TestPlanning(unittest.TestCase):
         windows = m.arrival_windows(self.when, 60, "domestic", True)
         self.assertEqual([item["number"] for item in windows], [1, 2])
 
+    def test_user_selected_margin_is_never_suppressed(self):
+        windows = m.arrival_windows(self.when, 45, "international", True)
+        self.assertEqual([item["number"] for item in windows], [1, 2])
+
     def test_travel_time_departure(self):
         arrive = self.when - timedelta(minutes=90)
         self.assertEqual(m.driving_leave_at(arrive, 40, 15),

@@ -115,6 +115,12 @@ mode: queued
 
 Events fire only while Home Assistant is running; this release does not guarantee a notification if HA is restarted at the exact trigger time. Flight details persist in Home Assistant's local `.storage` directory; no PNR, surname or authentication secrets are saved.
 
+## Dashboard card
+
+A built-in Markdown card example is available in [examples/next-flight-card.yaml](examples/next-flight-card.yaml). Paste it into the dashboard's manual card editor; it shows the next flight, countdown, suggested travel alternatives and a clearly labelled schedule-based progress bar after departure (only when departure status and arrival schedule exist). It does not claim to show live aircraft GPS.
+
+The definitive product design and outstanding phases are recorded in [docs/PRODUCT_SPEC.md](docs/PRODUCT_SPEC.md).
+
 ## Data sources and limitations
 
 - [Avinor: flight-data and required attribution](https://partner.avinor.no/en/services/flight-data/): **[Flydata fra Avinor](https://www.avinor.no)**. Published codes and scheduled timestamps are UTC; Home Assistant displays ISO timestamps with offsets.

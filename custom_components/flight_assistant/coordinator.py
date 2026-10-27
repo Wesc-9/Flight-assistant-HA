@@ -17,6 +17,7 @@ from .parsing import match_departure, parse_datetime, airport_arrival_target, re
 from .transport import get_waze_minutes, get_entur_journey
 from .planning import arrival_windows, driving_leave_at
 import asyncio
+from homeassistant.helpers import device_registry as dr
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -67,6 +68,10 @@ class FlightCoordinator(DataUpdateCoordinator):
         self._drive_cache.pop(uid, None)
         await self.store.async_save({"flights": self.flights})
         await self.async_request_refresh()
+        registry = dr.async_get(self.hass)
+        device = registry.async_get_device(identifiers={(DOMAIN, uid)}, connections=set())
+        if device is not None:
+            registry.async_remove_device(device.id)
         return True
 
     async def _async_update_data(self):

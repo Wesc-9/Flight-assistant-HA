@@ -109,7 +109,7 @@ class FlightCoordinator(DataUpdateCoordinator):
                             "flight_id": uid, "flight_number": flight["flight_number"],
                             "changes": list(changes),
                         })
-            if timedelta(hours=-1) <= scheduled - now <= timedelta(hours=36):
+            if flight.get("status") != "Cancelled" and timedelta(hours=0) <= scheduled - now <= timedelta(hours=36):
                 await self._refresh_transport(uid, flight, scheduled, now)
             else:
                 self.transport.pop(uid, None)

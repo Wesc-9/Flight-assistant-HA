@@ -1,7 +1,7 @@
 """Next flight and per-flight sensors."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import timedelta
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
@@ -50,7 +50,8 @@ class FlightSensor(CoordinatorEntity, SensorEntity):
     @property
     def extra_state_attributes(self):
         item = self.coordinator.flights.get(self.uid, {})
-        return {**item, **self.coordinator.transport.get(self.uid, {})}
+        return {**item, **self.coordinator.transport.get(self.uid, {}),
+                "attribution": "Flydata fra Avinor – https://www.avinor.no"}
 
 class NextFlightSensor(CoordinatorEntity, SensorEntity):
     _attr_name = "Flight Assistant Next Flight"
@@ -69,7 +70,7 @@ class NextFlightSensor(CoordinatorEntity, SensorEntity):
         ]
         future = [
             (when, flight) for when, flight in future
-            if when and when >= now - __import__("datetime").timedelta(hours=6)
+            if when and when >= now - timedelta(hours=6)
         ]
         return min(future, key=lambda x: x[0])[1] if future else None
 

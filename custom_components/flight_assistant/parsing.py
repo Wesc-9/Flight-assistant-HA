@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 import re
 import xml.etree.ElementTree as ET
 
-FLIGHT_RE = re.compile(r"^(?:SK|DY|D8|WF)\\s?\\d{1,5}[A-Z]?$", re.IGNORECASE)
+FLIGHT_RE = re.compile(r"^(?:SK|DY|D8|WF)\s?\\d{1,5}[A-Z]?$", re.IGNORECASE)
 IATA_RE = re.compile(r"^[A-Z]{3}$")
 STATUS_CODES = {"A": "Arrived", "C": "Cancelled", "D": "Departed",
                 "E": "New time", "N": "New information"}
@@ -21,7 +21,7 @@ def parse_datetime(value: str | None) -> datetime | None:
         return None
 
 def normalize_flight(value: str) -> str:
-    number = re.sub(r"\\s+", "", value).upper()
+    number = re.sub(r"\s+", "", value).upper()
     if not FLIGHT_RE.fullmatch(number):
         raise ValueError("Use a SAS/Norwegian/Widerøe flight number, e.g. SK345 or DY701.")
     return number
@@ -48,9 +48,9 @@ def parse_avinor(xml_text: str) -> list[dict]:
         for key in ("codeshareFlightNumbers", "codeshare_flight_numbers"):
             value = node.findtext(key)
             if value:
-                codeshares.extend(re.split(r"[,;\\s]+", value.upper()))
+                codeshares.extend(re.split(r"[,;\s]+", value.upper()))
         flights.append({
-            "flight_number": re.sub(r"\\s+", "", flight_id).upper(),
+            "flight_number": re.sub(r"\s+", "", flight_id).upper(),
             "scheduled": schedule,
             "expected": status.get("time") if status is not None else None,
             "status_code": status.get("code") if status is not None else None,

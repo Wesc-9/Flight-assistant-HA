@@ -51,6 +51,18 @@ class TestEntur(unittest.TestCase):
     def test_walking_only_is_not_public_transport(self):
         walk={**leg,"mode":"foot"}
         self.assertIsNone(parser.parse_entur_patterns(payload([walk]),deadline,parse_dt))
+    def test_bus_filter(self):
+        self.assertIsNotNone(parser.parse_entur_patterns(
+            payload([{**leg, "mode":"bus"}]), deadline, parse_dt, "bus"))
+        self.assertIsNone(parser.parse_entur_patterns(
+            payload([leg]), deadline, parse_dt, "bus"))
+
+    def test_train_filter(self):
+        self.assertIsNotNone(parser.parse_entur_patterns(
+            payload([leg]), deadline, parse_dt, "train"))
+        self.assertIsNone(parser.parse_entur_patterns(
+            payload([{**leg, "mode":"bus"}]), deadline, parse_dt, "train"))
+
     def test_graphql_error_is_not_a_route(self):
         self.assertIsNone(parser.parse_entur_patterns({"errors":[{"message":"x"}]},deadline,parse_dt))
     def test_absent_response_is_not_a_route(self):

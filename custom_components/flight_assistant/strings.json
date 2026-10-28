@@ -3,17 +3,13 @@
   "config": {
     "step": {
       "user": {
-        "title": "Set up Flight Assistant",
-        "description": "Enter a Norwegian street address or leave blank for Home Assistant Home. Time controls show minutes; the confirmation step shows hours and minutes.",
+        "title": "Step 1 of 2 · AeroDataBox API",
+        "description": "Enter your AeroDataBox Basic RapidAPI key first. Choose the free plan and check the terms. You can leave this blank and use Avinor closer to departure. Adding the integration will automatically open the first-trip form.",
         "data": {
-          "home_address": "Address (blank = Home)",
-          "airport_margin_minutes": "Minutes before scheduled departure",
-          "drive_buffer_minutes": "Parking / walking buffer"
+          "aerodatabox_api_key": "AeroDataBox RapidAPI key"
         },
         "data_description": {
-          "airport_margin_minutes": "90 min = 1 h 30 min, 120 min = 2 h",
-          "drive_buffer_minutes": "Extra time after driving.",
-          "home_address": "Confirm the address result on the next screen."
+          "aerodatabox_api_key": "Optional. Saved locally in Home Assistant. No paid test lookup is performed during setup."
         }
       },
       "confirm_address": {
@@ -98,56 +94,47 @@
       },
       "step": {
         "user": {
-          "title": "Add booking",
-          "description": "Name your trip. Choose manual registration and enter flight number + date in the next step (PNR not required). PNR-only booking lookup is not enabled yet.",
+          "title": "Step 2 of 2 · Register your trip",
+          "description": "Airline is inferred from flight number (SK=SAS, DY/D8=Norwegian, WF=Widerøe). Check stopover to add connecting flight numbers. Departure airport is optional but improves lookup matching. Set your airport arrival margin at the bottom.",
           "data": {
             "trip_name": "Trip name",
-            "airline": "Airline",
-            "booking_reference": "Booking reference (PNR)",
-            "surname": "Surname",
+            "flight_number": "Flight number",
+            "flight_date": "Departure date",
+            "departure_airport": "Departure airport (optional, e.g. TRD)",
+            "has_stopover": "Connecting flight / stopover",
+            "checked_bag": "I have checked baggage",
+            "transport_mode": "How will you travel to the airport?",
+            "origin_address": "Starting address (blank = Home/default)",
             "journey_type": "Domestic or international",
-            "registration_mode": "Registration method"
-          }
-        },
-        "travel": {
-          "title": "Transport and margin",
-          "description": "Default is 1 h 30 min domestic / 2 h international. Walking and cycling routes are not available yet.",
-          "data": {
-            "airport_margin_minutes": "Airport arrival margin",
-            "checked_bag": "Checked luggage",
-            "transport_mode": "Transport",
-            "origin_address": "Departure address (blank = Home)"
+            "airport_margin_minutes": "How early do you want to arrive at the airport?"
           },
           "data_description": {
-            "airport_margin_minutes": "90 min = 1 h 30 min; 120 min = 2 h"
+            "flight_number": "Airline is detected automatically from the flight number.",
+            "has_stopover": "You can add the next flight number/date in the following screen.",
+            "airport_margin_minutes": "90 min = 1 h 30 min (domestic), 120 min = 2 h (international). Choose your own value.",
+            "origin_address": "You can select a matching address from Entur.",
+            "transport_mode": "Bus/train from Entur, taxi/car from Waze. Walking/cycling routes are not yet available."
           }
         },
         "confirm_origin": {
-          "title": "Confirm departure address",
-          "description": "Choose the address. Margin: {airport_margin}.",
+          "title": "Confirm starting address",
+          "description": "Choose the correct address. Airport arrival margin: {airport_margin}.",
           "data": {
-            "address_match": "Departure address"
-          }
-        },
-        "confirm_booking": {
-          "title": "Confirm unverified booking",
-          "description": "Trip: {trip_name}. Airline: {airline}. Legs: {segments}. From: {address}. Transport: {transport}. Margin: {margin}. Flight number/date are looked up using optional AeroDataBox and later Avinor. PNR and surname do not perform a lookup. If provided, they are stored in Home Assistant without additional encryption.",
-          "data": {
-            "acknowledge_pending": "I understand, save the trip"
+            "address_match": "Address"
           }
         },
         "flight": {
-          "title": "Flight number and date",
-          "description": "Enter the flight number and date for this leg. Departure airport is optional but improves free Avinor matching. Departure time is found if there is a match.",
+          "title": "Next connecting flight",
+          "description": "Enter the next flight number and date. You can continue adding connections.",
           "data": {
-            "flight_number": "Flight number (e.g. SK345)",
+            "flight_number": "Flight number",
             "flight_date": "Departure date",
-            "departure_airport": "Departure airport (optional IATA)"
+            "departure_airport": "Departure airport (optional)"
           }
         },
         "more_flights": {
-          "title": "More flight legs?",
-          "description": "Saved legs: {segments}. Check the box to add a connecting flight leg.",
+          "title": "More connections?",
+          "description": "Recorded flights: {segments}.",
           "data": {
             "add_another_flight": "Add another flight leg"
           }
@@ -158,13 +145,13 @@
         "invalid_booking_reference": "Booking reference must be 5–8 letters/digits.",
         "invalid_surname": "Surname required.",
         "invalid_margin": "Choose 45–240 minutes, step 15.",
-        "invalid_address": "Enter a valid address.",
+        "invalid_address": "Address must be shorter than 200 characters.",
         "address_not_found": "No addresses found.",
         "address_unavailable": "Entur address search is unavailable.",
         "required": "Please confirm before saving.",
-        "invalid_flight": "Invalid flight number, date or IATA code.",
+        "invalid_flight": "Check flight number, date and optional IATA code.",
         "duplicate_flight": "This flight leg is already added.",
-        "too_many_flights": "Maximum eight legs per trip.",
+        "too_many_flights": "Maximum eight flight legs.",
         "booking_pair_required": "Provide both PNR and surname or choose manual entry without them."
       }
     }

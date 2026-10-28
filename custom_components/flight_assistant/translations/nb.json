@@ -3,17 +3,13 @@
   "config": {
     "step": {
       "user": {
-        "title": "Konfigurer Flight Assistant",
-        "description": "Skriv en norsk gateadresse, eller la feltet stå tomt for Hjem i Home Assistant. Tidene velges i minutter, og bekreftelsesskjermen viser også timer og minutter.",
+        "title": "1 av 2 · AeroDataBox API",
+        "description": "Først legger du inn RapidAPI-nøkkelen for AeroDataBox Basic. Velg gratisplanen hos RapidAPI og kontroller vilkårene. Du kan også la feltet stå tomt og fortsette med gratis Avinor-oppslag nær avreise. Når oppsettet lagres, åpnes registrering av første reise automatisk.",
         "data": {
-          "home_address": "Adresse (tom = Hjem)",
-          "airport_margin_minutes": "Ønsket tid før flyavgang",
-          "drive_buffer_minutes": "Ekstra tid for parkering og gange"
+          "aerodatabox_api_key": "AeroDataBox RapidAPI-nøkkel"
         },
         "data_description": {
-          "airport_margin_minutes": "90 min = 1 t 30 min, 120 min = 2 t",
-          "drive_buffer_minutes": "Legg til tid etter at bilen er fremme.",
-          "home_address": "Du velger et adresseresultat i neste steg."
+          "aerodatabox_api_key": "Valgfritt. Nøkkelen lagres lokalt i Home Assistant. Vi utfører ikke et betalt testoppslag under installasjonen."
         }
       },
       "confirm_address": {
@@ -98,73 +94,64 @@
       },
       "step": {
         "user": {
-          "title": "Legg til flyreise",
-          "description": "Gi reisen et navn. Velg manuell registrering og skriv inn flynummer + dato på neste skjerm (PNR er ikke påkrevd). Alternativet for PNR-oppslag er ikke aktivt ennå.",
+          "title": "2 av 2 · Registrer reisen",
+          "description": "Flyselskapet bestemmes automatisk fra flynummeret (SK=SAS, DY/D8=Norwegian, WF=Widerøe). Huk av ved mellomlanding for å registrere neste flynummer. Avreiseflyplass er valgfritt, men gir sikrere oppslag. Velg ønsket ankomsttid nederst.",
           "data": {
-            "trip_name": "Reisens navn",
-            "airline": "Flyselskap",
-            "booking_reference": "Bookingreferanse (PNR)",
-            "surname": "Etternavn",
+            "trip_name": "Navn på reisen",
+            "flight_number": "Flynummer",
+            "flight_date": "Avreisedato",
+            "departure_airport": "Avreiseflyplass (valgfri, f.eks. TRD)",
+            "has_stopover": "Mellomlanding / flere fly",
+            "checked_bag": "Jeg har innsjekket bagasje",
+            "transport_mode": "Hvordan vil du reise til flyplassen?",
+            "origin_address": "Avreiseadresse (tom = hjem/standardadresse)",
             "journey_type": "Innenlands eller utenlands",
-            "registration_mode": "Registreringsmåte"
-          }
-        },
-        "travel": {
-          "title": "Transport og margin",
-          "description": "Standard er 1 t 30 min innenlands eller 2 t utenlands. Gange og sykling kan velges, men ruteberegning er ikke aktiv ennå.",
-          "data": {
-            "airport_margin_minutes": "Minutter før flyavgang",
-            "checked_bag": "Innsjekket bagasje",
-            "transport_mode": "Transport",
-            "origin_address": "Avreiseadresse (tom = Hjem)"
+            "airport_margin_minutes": "Hvor lenge før avgang vil du være på flyplassen?"
           },
           "data_description": {
-            "airport_margin_minutes": "90 min = 1 t 30 min; 120 min = 2 t"
+            "flight_number": "Flyselskap fylles inn automatisk etter flynummer.",
+            "has_stopover": "Legg til neste flynummer og dato i etterfølgende skjerm.",
+            "airport_margin_minutes": "90 min = 1 t 30 min (innenlands), 120 min = 2 t (utenlands). Velg verdien som passer deg.",
+            "origin_address": "Du får velge mellom adresser fra Entur om du fyller inn en adresse.",
+            "transport_mode": "Buss/tog fra Entur. Taxi/bil fra Waze. Gange og sykkel støttes ennå ikke med ruter."
           }
         },
         "confirm_origin": {
           "title": "Bekreft avreiseadresse",
-          "description": "Velg adressen som skal brukes. Margin: {airport_margin}.",
+          "description": "Velg riktig adresse. Ønsket ankomstmargin: {airport_margin}.",
           "data": {
-            "address_match": "Avreiseadresse"
-          }
-        },
-        "confirm_booking": {
-          "title": "Bekreft uverifisert booking",
-          "description": "Reise: {trip_name}. Flyselskap: {airline}. Flystrekninger: {segments}. Fra: {address}. Transport: {transport}. Margin: {margin}. Flynummer og dato søkes opp hos AeroDataBox (med nøkkel) eller Avinor når tilgjengelig. Bookingreferanse og etternavn brukes ikke til oppslag. Dersom du har fylt dem inn, lagres de lokalt i Home Assistant uten ekstra kryptering.",
-          "data": {
-            "acknowledge_pending": "Jeg forstår, lagre reisen"
+            "address_match": "Adresse"
           }
         },
         "flight": {
-          "title": "Flynummer og avreisedato",
-          "description": "Legg inn flynummer og dato for denne strekningen. Avreiseflyplass er valgfritt, men gjør gratis Avinor-oppslag mer pålitelig. Avgangstid hentes automatisk ved treff.",
+          "title": "Neste flystrekning",
+          "description": "Oppgi flynummer og dato for neste del av reisen. Du kan legge til flere strekninger etterpå.",
           "data": {
-            "flight_number": "Flynummer (f.eks. SK345)",
+            "flight_number": "Flynummer",
             "flight_date": "Avreisedato",
-            "departure_airport": "Avreiseflyplass (valgfri IATA-kode)"
+            "departure_airport": "Avreiseflyplass (valgfri)"
           }
         },
         "more_flights": {
-          "title": "Flere flystrekninger?",
-          "description": "Registrert: {segments}. Huk av dersom du skal bytte fly og ønsker å legge til neste flystrekning.",
+          "title": "Flere mellomlandinger?",
+          "description": "Registrerte fly: {segments}.",
           "data": {
-            "add_another_flight": "Legg til enda en flystrekning"
+            "add_another_flight": "Legg til en flystrekning til"
           }
         }
       },
       "error": {
-        "invalid_name": "Bruk et navn på 1–80 tegn.",
+        "invalid_name": "Gi reisen et navn (1–80 tegn).",
         "invalid_booking_reference": "Bookingreferansen må bestå av 5–8 bokstaver/tall.",
         "invalid_surname": "Fyll inn etternavn.",
-        "invalid_margin": "Velg 45–240 min med trinn på 15 min.",
-        "invalid_address": "Skriv en gyldig adresse.",
+        "invalid_margin": "Velg 45–240 minutter i trinn på 15 minutter.",
+        "invalid_address": "Adresse må være under 200 tegn.",
         "address_not_found": "Ingen adresser funnet. Prøv en mer nøyaktig adresse.",
         "address_unavailable": "Enturs adressesøk er ikke tilgjengelig. Prøv igjen.",
         "required": "Bekreft før lagring.",
-        "invalid_flight": "Ugyldig flynummer, dato eller IATA-kode.",
-        "duplicate_flight": "Flystrekningen er allerede lagt til.",
-        "too_many_flights": "Maksimalt åtte flystrekninger per reise.",
+        "invalid_flight": "Kontroller flynummer, dato og eventuell IATA-kode.",
+        "duplicate_flight": "Flystrekningen er allerede lagt inn.",
+        "too_many_flights": "Du kan legge til maksimalt åtte flystrekninger.",
         "booking_pair_required": "Fyll inn både PNR og etternavn, eller velg manuell registrering uten begge."
       }
     }

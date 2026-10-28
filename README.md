@@ -4,11 +4,25 @@
 
 **[Åpne Flight Assistant direkte i HACS](https://my.home-assistant.io/redirect/hacs_repository/?owner=Wesc-9&repository=Flight-assistant-HA&category=integration)**
 
-**Current version: v0.1.3** (first release: v0.1.0) — one Home Assistant device per saved trip, three arrival-time travel proposals and per-trip travel preferences. Airline PNR lookup and actual position tracking are not yet implemented.
+**Current version: v0.1.4** (first release: v0.1.0) — one Home Assistant device per saved trip, three arrival-time travel proposals and per-trip travel preferences. Airline PNR lookup and actual position tracking are not yet implemented.
 
 An early, installable Home Assistant custom integration for following SAS and Norwegian flights, including **Avinor flight status**, **gate and check-in area** (when supplied), **Entur public transport suggestions** and optional **Waze driving departure suggestions**.
 
 > **Important:** Version 0.1.2 cannot retrieve an airline booking using only a PNR/booking reference and surname. SAS/Norwegian do not provide a verified, openly accessible passenger-booking API for this use. Do **not** enter PNRs, surnames or passwords in Home Assistant actions. No fabricated booking lookup, scraping of private endpoints or credential collection is included. The PNR-first workflow is a later development goal, contingent on an authorized method.
+
+## New installation wizard (v0.1.4)
+
+**First screen: AeroDataBox API key.** Enter an optional `X-RapidAPI-Key` from the AeroDataBox Basic plan on RapidAPI. For no-account/no-fee use, leave the field blank; the integration still saves flights and Avinor can enrich flights closer to departure. This screen does not make a billed API call or validate the plan.
+
+**Second screen: Register first trip automatically.** Home Assistant immediately starts an Add Trip subentry flow after installing Flight Assistant. The form has, in order: trip name, flight number, departure date, optional origin airport, checkbox for connecting flights, checked baggage, transport mode, optional starting street address, domestic/international classification, and finally a slider for preferred arrival margin at the airport. Airline is inferred from the flight-number prefix (SK = SAS; DY/D8 = Norwegian; WF = Widerøe). This uses Home Assistant's supported subentry continuation mechanism, and should be available on recent HA versions.
+
+Check **connecting flight** to provide the next flight number/date in a separate screen. Add as many legs as needed (maximum 8). If a street address is entered, an additional confirmation screen lets you select the correct Entur geocoded address. Booking PNR and surname are not required in the manual workflow.
+
+Travel modes: **walk**, **bus**, **taxi**, **train**, **drive yourself**, **compare car and transit**, **all public transit**, and **cycle**. Bus and train choices filter Entur route patterns for a corresponding vehicle leg; taxi uses Waze taxi travel time but *does not include waiting for taxi pickup*; walk/cycle routing is not yet included and returns no invented travel estimates. The airport arrival slider remains the last field; 90 minutes corresponds to 1 t 30 min, 120 minutes to 2 t. HA's standard slider itself uses numeric minutes.
+
+**Existing installs:** Installing v0.1.4 via HACS does **not** re-run the first-time wizard. Do not delete or duplicate your existing integration. Use **Flight Assistant → Configure** to add/change the AeroDataBox key, then **Add trip** for each new trip. Existing saved trips are retained.
+
+**Disclosure:** SAS/Norwegian PNR-only lookup is not implemented. A flight number/date match from AeroDataBox or Avinor is not proof of a passenger booking. External API and full HA UI flows are not yet tested on your running Home Assistant OS; back up your configuration before upgrading.
 
 ## Free driving + public transport suggestions (v0.1.3)
 

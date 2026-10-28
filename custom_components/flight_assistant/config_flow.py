@@ -1,49 +1,287 @@
-"""Home Assistant UI setup and options."""
-from __future__ import annotations
+"""Flight Assistant config and additional bookings as Home Assistant subentries.
 
+Important: booking references are not queried until an approved airline integration
+is available. They must never be put in entity attributes, service responses or logs.
+"""
+from __future__ import annotations
+import re
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
-from .const import (
-    DOMAIN, DEFAULT_MARGIN_MINUTES, DEFAULT_EXTRA_DRIVE_MINUTES,
-)
+from homeassistant.helpers import selector
+from .address import AddressError, lookup
+from .const import DOMAIN, DEFAULT_EXTRA_DRIVE_MINUTES
+from .display import minutes_text
 
-def schema(defaults: dict) -> vol.Schema:
+def text_field(password=False):
+    return selector.TextSelector(selector.TextSelectorConfig(
+        type=selector.TextSelectorType.PASSWORD if password else selector.TextSelectorType.TEXT
+    ))
+
+def slider(low, high, step):
+    return selector.NumberSelector(selector.NumberSelectorConfig(
+        min=low, max=high, step=step,
+        mode=selector.NumberSelectorMode.SLIDER, unit_of_measurement="min",
+    ))
+
+def select(items):
+    return selector.SelectSelector(selector.SelectSelectorConfig(
+        options=[selector.SelectOptionDict(value=k, label=v) for k, v in items],
+        mode=selector.SelectSelectorMode.DROPDOWN,
+    ))
+
+MODES = [("both", "Sammenlign bil og kollektiv"),
+         ("drive", "Bil"), ("transit", "Kollektiv"),
+         ("walk", "Gå (rute kommer senere)"),
+         ("bike", "Sykkel (rute kommer senere)")]
+TYPES = [("domestic", "Innenlands"), ("international", "Utenlands")]
+AIRLINES = [("sas", "SAS"), ("norwegian", "Norwegian")]
+
+def global_schema(values):
     return vol.Schema({
-        vol.Required("home_latitude", default=defaults["home_latitude"]): vol.All(
-            vol.Coerce(float), vol.Range(min=-90, max=90)),
-        vol.Required("home_longitude", default=defaults["home_longitude"]): vol.All(
-            vol.Coerce(float), vol.Range(min=-180, max=180)),
-        vol.Required("airport_margin_minutes", default=defaults["airport_margin_minutes"]):
-            vol.All(vol.Coerce(int), vol.Range(min=45, max=300)),
-        vol.Required("drive_buffer_minutes", default=defaults["drive_buffer_minutes"]):
-            vol.All(vol.Coerce(int), vol.Range(min=0, max=120)),
+        vol.Optional("home_address", default=values.get("home_address", "")): text_field(),
+        vol.Required("airport_margin_minutes",
+                     default=values.get("airport_margin_minutes", 90)): slider(45, 240, 15),
+        vol.Required("drive_buffer_minutes",
+                     default=values.get("drive_buffer_minutes", DEFAULT_EXTRA_DRIVE_MINUTES)):
+            slider(0, 120, 5),
     })
 
-class FlightAssistantConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+def booking_identity_schema(values):
+    return vol.Schema({
+        vol.Required("trip_name", default=values.get("trip_name", "")): text_field(),
+        vol.Required("airline", default=values.get("airline", "sas")): select(AIRLINES),
+        vol.Required("booking_reference", default=values.get("booking_reference", "")):
+            text_field(password=True),
+        vol.Required("surname", default=values.get("surname", "")):
+            text_field(password=True),
+        vol.Required("journey_type", default=values.get("journey_type", "domestic")):
+            select(TYPES),
+    })
+
+def trip_travel_schema(values, margin):
+    return vol.Schema({
+        vol.Required("airport_margin_minutes",
+                     default=values.get("airport_margin_minutes", margin)):
+            slider(45, 240, 15),
+        vol.Required("checked_bag", default=values.get("checked_bag", False)):
+            selector.BooleanSelector(),
+        vol.Required("transport_mode", default=values.get("transport_mode", "both")):
+            select(MODES),
+        vol.Optional("origin_address", default=values.get("origin_address", "")):
+            text_field(),
+    })
+
+def match_schema(matches):
+    return vol.Schema({
+        vol.Required("address_match", default="0"):
+            select([(str(i), item["label"]) for i, item in enumerate(matches)])
+    })
+
+class AddressSteps:
+    """Shared address verification methods for main and options flows."""
+    def _setup_address(self):
+        self._pending = None
+        self._matches = []
+
+    async def _resolve_address(self, data, field):
+        entered = (data.get(field) or "").strip()
+        data[field] = entered
+        if not entered:
+            data["home_latitude"] = self.hass.config.latitude
+            data["home_longitude"] = self.hass.config.longitude
+            data["resolved_home_address"] = ""
+            return data, False
+        self._pending = data
+        self._matches = await lookup(self.hass, entered)
+        return data, True
+
+    def _selected_address(self, choice, field="home_address"):
+        selected = self._matches[int(choice["address_match"])]
+        data = dict(self._pending)
+        data["resolved_" + field] = selected["label"]
+        if field == "home_address":
+            data["home_latitude"] = selected["latitude"]
+            data["home_longitude"] = selected["longitude"]
+        else:
+            data["departure_latitude"] = selected["latitude"]
+            data["departure_longitude"] = selected["longitude"]
+        return data
+
+    def _show_address_choice(self, step):
+        return self.async_show_form(
+            step_id=step, data_schema=match_schema(self._matches),
+            description_placeholders={
+                "airport_margin": minutes_text(self._pending["airport_margin_minutes"]),
+                "drive_buffer": minutes_text(self._pending.get("drive_buffer_minutes", 0)),
+            },
+        )
+
+class FlightAssistantConfigFlow(AddressSteps, config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
+
+    def __init__(self):
+        self._setup_address()
+
+    @classmethod
+    @callback
+    def async_get_supported_subentry_types(cls, config_entry):
+        return {"booking": BookingSubentryFlow}
 
     async def async_step_user(self, user_input=None):
         await self.async_set_unique_id(DOMAIN)
         self._abort_if_unique_id_configured()
+        errors = {}
         if user_input is not None:
-            return self.async_create_entry(title="Flight Assistant", data=user_input)
-        defaults = {
-            "home_latitude": self.hass.config.latitude,
-            "home_longitude": self.hass.config.longitude,
-            "airport_margin_minutes": DEFAULT_MARGIN_MINUTES,
-            "drive_buffer_minutes": DEFAULT_EXTRA_DRIVE_MINUTES,
-        }
-        return self.async_show_form(step_id="user", data_schema=schema(defaults))
+            try:
+                values, found = await self._resolve_address(dict(user_input), "home_address")
+                if found:
+                    return await self.async_step_confirm_address()
+                return self.async_create_entry(title="Flight Assistant", data=values)
+            except AddressError as exc:
+                errors["base"] = str(exc)
+        return self.async_show_form(
+            step_id="user",
+            data_schema=global_schema(user_input or {}),
+            errors=errors,
+        )
+
+    async def async_step_confirm_address(self, user_input=None):
+        if user_input is not None:
+            return self.async_create_entry(
+                title="Flight Assistant", data=self._selected_address(user_input)
+            )
+        return self._show_address_choice("confirm_address")
 
     @staticmethod
     @callback
     def async_get_options_flow(config_entry):
         return FlightAssistantOptionsFlow()
 
-class FlightAssistantOptionsFlow(config_entries.OptionsFlow):
+class FlightAssistantOptionsFlow(AddressSteps, config_entries.OptionsFlow):
+    def __init__(self):
+        self._setup_address()
+
     async def async_step_init(self, user_input=None):
+        errors = {}
         if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
+            try:
+                values, found = await self._resolve_address(dict(user_input), "home_address")
+                if found:
+                    return await self.async_step_confirm_address()
+                return self.async_create_entry(title="", data=values)
+            except AddressError as exc:
+                errors["base"] = str(exc)
         defaults = {**self.config_entry.data, **self.config_entry.options}
-        return self.async_show_form(step_id="init", data_schema=schema(defaults))
+        return self.async_show_form(
+            step_id="init",
+            data_schema=global_schema(user_input or defaults),
+            errors=errors,
+        )
+
+    async def async_step_confirm_address(self, user_input=None):
+        if user_input is not None:
+            return self.async_create_entry(title="", data=self._selected_address(user_input))
+        return self._show_address_choice("confirm_address")
+
+class BookingSubentryFlow(AddressSteps, config_entries.ConfigSubentryFlow):
+    """Add a named pending booking to the existing Flight Assistant instance."""
+    def __init__(self):
+        self._setup_address()
+        self._identity = {}
+        self._values = {}
+
+    async def async_step_user(self, user_input=None):
+        errors = {}
+        if user_input is not None:
+            name = (user_input.get("trip_name") or "").strip()
+            pnr = re.sub(r"\s+", "", user_input.get("booking_reference") or "").upper()
+            surname = (user_input.get("surname") or "").strip()
+            if not (1 <= len(name) <= 80):
+                errors["trip_name"] = "invalid_name"
+            elif not re.fullmatch(r"[A-Z0-9]{5,8}", pnr):
+                errors["booking_reference"] = "invalid_booking_reference"
+            elif not (1 <= len(surname) <= 100):
+                errors["surname"] = "invalid_surname"
+            else:
+                self._identity = {**user_input, "trip_name": name,
+                                  "booking_reference": pnr, "surname": surname}
+                return await self.async_step_travel()
+        return self.async_show_form(
+            step_id="user",
+            data_schema=booking_identity_schema(user_input or {}),
+            errors=errors,
+        )
+
+    async def async_step_travel(self, user_input=None):
+        errors = {}
+        if user_input is not None:
+            data = {**self._identity, **user_input}
+            data["airport_margin_minutes"] = int(data["airport_margin_minutes"])
+            try:
+                if not (45 <= data["airport_margin_minutes"] <= 240
+                        and data["airport_margin_minutes"] % 15 == 0):
+                    errors["airport_margin_minutes"] = "invalid_margin"
+                elif len(str(data.get("origin_address") or "")) > 200:
+                    errors["origin_address"] = "invalid_address"
+                else:
+                    if not (data.get("origin_address") or "").strip():
+                        # Keep a per-booking origin: Home Assistant's Home is default.
+                        data["departure_latitude"] = self.hass.config.latitude
+                        data["departure_longitude"] = self.hass.config.longitude
+                        data["resolved_origin_address"] = "Home"
+                        self._values = data
+                        return await self.async_step_confirm_booking()
+                    self._pending = data
+                    self._matches = await lookup(self.hass, data["origin_address"])
+                    return await self.async_step_confirm_origin()
+            except AddressError as exc:
+                errors["base"] = str(exc)
+        default_margin = 90 if self._identity.get("journey_type") == "domestic" else 120
+        return self.async_show_form(
+            step_id="travel",
+            data_schema=trip_travel_schema(user_input or {}, default_margin),
+            errors=errors,
+        )
+
+    async def async_step_confirm_origin(self, user_input=None):
+        if user_input is not None:
+            self._values = self._selected_address(user_input, field="origin_address")
+            return await self.async_step_confirm_booking()
+        return self._show_address_choice("confirm_origin")
+
+    async def async_step_confirm_booking(self, user_input=None):
+        if user_input is not None:
+            if user_input.get("acknowledge_pending") is True:
+                return self.async_create_entry(
+                    title=self._values["trip_name"],
+                    # Stored privately in HA config entries, not exposed on sensors.
+                    # This does not perform an airline request.
+                    data={**self._values, "booking_status": "pending_airline_lookup"},
+                )
+            return self.async_show_form(
+                step_id="confirm_booking",
+                data_schema=vol.Schema({
+                    vol.Required("acknowledge_pending", default=False):
+                        selector.BooleanSelector()
+                }),
+                errors={"acknowledge_pending": "required"},
+                description_placeholders=self._summary(),
+            )
+        return self.async_show_form(
+            step_id="confirm_booking",
+            data_schema=vol.Schema({
+                vol.Required("acknowledge_pending", default=False):
+                    selector.BooleanSelector()
+            }),
+            description_placeholders=self._summary(),
+        )
+
+    def _summary(self):
+        return {
+            "trip_name": self._values["trip_name"],
+            "airline": dict(AIRLINES)[self._values["airline"]],
+            "margin": minutes_text(self._values["airport_margin_minutes"]),
+            "transport": dict(MODES)[self._values["transport_mode"]],
+            "address": self._values.get("resolved_origin_address") or "Home",
+        }

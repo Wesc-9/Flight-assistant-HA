@@ -4,11 +4,25 @@
 
 **[Åpne Flight Assistant direkte i HACS](https://my.home-assistant.io/redirect/hacs_repository/?owner=Wesc-9&repository=Flight-assistant-HA&category=integration)**
 
-**First published release: v0.1.0** — one Home Assistant device per saved trip, three arrival-time travel proposals and per-trip travel preferences. Airline PNR lookup and actual position tracking are not yet implemented.
+**Current version: v0.1.1** (first release: v0.1.0) — one Home Assistant device per saved trip, three arrival-time travel proposals and per-trip travel preferences. Airline PNR lookup and actual position tracking are not yet implemented.
 
 An early, installable Home Assistant custom integration for following SAS and Norwegian flights, including **Avinor flight status**, **gate and check-in area** (when supplied), **Entur public transport suggestions** and optional **Waze driving departure suggestions**.
 
-> **Important:** Version 0.1.0 cannot retrieve an airline booking using only a PNR/booking reference and surname. SAS/Norwegian do not provide a verified, openly accessible passenger-booking API for this use. Do **not** enter PNRs, surnames or passwords in Home Assistant actions. No fabricated booking lookup, scraping of private endpoints or credential collection is included. The PNR-first workflow is a later development goal, contingent on an authorized method.
+> **Important:** Version 0.1.1 cannot retrieve an airline booking using only a PNR/booking reference and surname. SAS/Norwegian do not provide a verified, openly accessible passenger-booking API for this use. Do **not** enter PNRs, surnames or passwords in Home Assistant actions. No fabricated booking lookup, scraping of private endpoints or credential collection is included. The PNR-first workflow is a later development goal, contingent on an authorized method.
+
+## Add named booking devices (v0.1.1)
+
+You should configure Flight Assistant **once**. To add a second or subsequent trip, open **Settings → Devices & services → Flight Assistant → Add entry / Add trip**, *not* "Add integration".
+
+Each trip asks for a custom name, airline (SAS/Norwegian), booking reference (PNR), surname, domestic/international, bag, transport mode (car/public transport/both/walking/cycling), airport arrival margin and optional Norwegian departure address. The new flow confirms an address from **Entur Geocoder v3** and lets you save the trip as a pending Home Assistant subentry with a separate device and booking-status sensor.
+
+**Caution:** PNR lookups are not connected to SAS or Norwegian in v0.1.1. A saved booking does not prove the airline reservation exists, and no dates, Avinor feed or transport itinerary can be discovered using PNR alone yet. Until an authorized PNR lookup exists, only manually entered flight numbers (Developer Tools action) can receive Avinor updates.
+
+Booking references and surnames are stored locally in HA's config-entry storage **without extra encryption**, never as sensor attributes, notifications or logs. Protect admin access and backups. The booking flow explicitly warns and asks for confirmation before saving.
+
+The main integration setup has been improved: enter a Norwegian street address or leave blank for Home Assistant's Home location, and use the numeric minute sliders. After address lookup, selected times are also summarized as **60 min = 1 t**, **90 min = 1 t 30 min**. Dynamically formatting the slider thumb itself requires a custom frontend and is not yet implemented.
+
+Walking/cycling routing remains unimplemented; these options only record a transport preference.
 
 ## Releases and updates
 

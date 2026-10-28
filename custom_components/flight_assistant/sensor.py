@@ -31,6 +31,10 @@ async def async_setup_entry(hass, entry, async_add_entities):
 
     async_add_entities([NextFlightSensor(coordinator)])
     add_new()
+    for booking in entry.get_subentries_of_type("booking"):
+        async_add_entities(
+            [PendingBookingSensor(booking)], config_subentry_id=booking.subentry_id
+        )
     entry.async_on_unload(coordinator.async_add_listener(add_new))
 
 class FlightSensor(CoordinatorEntity, SensorEntity):
@@ -133,4 +137,43 @@ class NextFlightSensor(CoordinatorEntity, SensorEntity):
             ),
             "aircraft_live_position_available": False,
             "attribution": "Flydata fra Avinor – https://www.avinor.no",
+        }
+
+
+class PendingBookingSensor(SensorEntity):
+    """One per named booking; no airline data has been retrieved yet."""
+    _attr_icon = "mdi:ticket-confirmation-outline"
+    _attr_has_entity_name = True
+    _attr_name = "Bookingstatus"
+
+    def __init__(self, booking):
+        self._booking = booking
+        self._attr_unique_id = f"flight_assistant_booking_{booking.subentry_id}"
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, f"booking_{booking.subentry_id}")},
+            name=booking.title,
+            manufacturer="Flight Assistant",
+            model="Airline reservation - pending lookup",
+        )
+
+    @property
+    def native_value(self):
+        return "Venter på flyselskapoppslag"
+
+    @property
+    def extra_state_attributes(self):
+        """Never publish booking reference, surname, or raw config data."""
+        d = self._booking.data
+        from .display import minutes_text
+        return {
+            "trip_name": self._booking.title,
+            "airline": "SAS" if d.get("airline") == "sas" else "Norwegian",
+            "booking_verified": False,
+            "flight_details_available": False,
+            "flight_tracking_available": False,
+            "transport_mode": d.get("transport_mode", "both"),
+            "checked_bag": d.get("checked_bag", False),
+            "airport_margin": minutes_text(d.get("airport_margin_minutes", 90)),
+            "origin_address": d.get("resolved_origin_address", "Home"),
+            "note": "Bookingen er lagret, men har ikke blitt hentet fra flyselskapet.",
         }

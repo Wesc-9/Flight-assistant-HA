@@ -4,14 +4,30 @@
     "step": {
       "user": {
         "title": "Konfigurer Flight Assistant",
-        "description": "Bruker valgt hjemmeadresse (koordinater) til reiseberegninger. Legg til fly under Utviklerverktøy → Handlinger.",
+        "description": "Skriv en norsk gateadresse, eller la feltet stå tomt for Hjem i Home Assistant. Tidene velges i minutter, og bekreftelsesskjermen viser også timer og minutter.",
         "data": {
-          "home_latitude": "Hjemmebreddegrad",
-          "home_longitude": "Hjemmelengdegrad",
-          "airport_margin_minutes": "Minutter på flyplassen før planlagt avgang",
-          "drive_buffer_minutes": "Ekstra minutter for bil, parkering og gange"
+          "home_address": "Adresse (tom = Hjem)",
+          "airport_margin_minutes": "Ønsket tid før flyavgang",
+          "drive_buffer_minutes": "Ekstra tid for parkering og gange"
+        },
+        "data_description": {
+          "airport_margin_minutes": "90 min = 1 t 30 min, 120 min = 2 t",
+          "drive_buffer_minutes": "Legg til tid etter at bilen er fremme.",
+          "home_address": "Du velger et adresseresultat i neste steg."
+        }
+      },
+      "confirm_address": {
+        "title": "Bekreft adressen",
+        "description": "Velg riktig adresse. Flyplassmargin: {airport_margin}. Ekstra tid: {drive_buffer}.",
+        "data": {
+          "address_match": "Adresse"
         }
       }
+    },
+    "error": {
+      "address_not_found": "Ingen adresser funnet. Prøv en mer nøyaktig adresse.",
+      "address_unavailable": "Enturs adressesøk er ikke tilgjengelig. Prøv igjen.",
+      "invalid_address": "Skriv en gyldig adresse."
     }
   },
   "options": {
@@ -19,12 +35,24 @@
       "init": {
         "title": "Innstillinger for Flight Assistant",
         "data": {
-          "home_latitude": "Hjemmebreddegrad",
-          "home_longitude": "Hjemmelengdegrad",
-          "airport_margin_minutes": "Margin på flyplassen (minutter)",
-          "drive_buffer_minutes": "Buffer for bil og parkering (minutter)"
+          "home_address": "Adresse (tom = Hjem)",
+          "airport_margin_minutes": "Ønsket tid før flyavgang",
+          "drive_buffer_minutes": "Ekstra tid for parkering og gange"
+        },
+        "description": "Skriv en norsk gateadresse, eller la feltet stå tomt for Hjem i Home Assistant. Tidene velges i minutter, og bekreftelsesskjermen viser også timer og minutter."
+      },
+      "confirm_address": {
+        "title": "Bekreft adressen",
+        "description": "Velg riktig adresse. Flyplassmargin: {airport_margin}. Ekstra tid: {drive_buffer}.",
+        "data": {
+          "address_match": "Adresse"
         }
       }
+    },
+    "error": {
+      "address_not_found": "Ingen adresser funnet. Prøv en mer nøyaktig adresse.",
+      "address_unavailable": "Enturs adressesøk er ikke tilgjengelig. Prøv igjen.",
+      "invalid_address": "Skriv en gyldig adresse."
     }
   },
   "services": {
@@ -53,6 +81,64 @@
         "flight_id": {
           "name": "Reise-ID"
         }
+      }
+    }
+  },
+  "config_subentries": {
+    "booking": {
+      "entry_type": "Reise",
+      "initiate_flow": {
+        "user": "Legg til reise"
+      },
+      "step": {
+        "user": {
+          "title": "Legg til flyreise",
+          "description": "Gi reisen et navn og legg inn bookingreferanse og etternavn. SAS/Norwegian-oppslag er foreløpig ikke tilgjengelig. Opplysningene lagres lokalt i Home Assistant.",
+          "data": {
+            "trip_name": "Reisens navn",
+            "airline": "Flyselskap",
+            "booking_reference": "Bookingreferanse (PNR)",
+            "surname": "Etternavn",
+            "journey_type": "Innenlands eller utenlands"
+          }
+        },
+        "travel": {
+          "title": "Transport og margin",
+          "description": "Standard er 1 t 30 min innenlands eller 2 t utenlands. Gange og sykling kan velges, men ruteberegning er ikke aktiv ennå.",
+          "data": {
+            "airport_margin_minutes": "Minutter før flyavgang",
+            "checked_bag": "Innsjekket bagasje",
+            "transport_mode": "Transport",
+            "origin_address": "Avreiseadresse (tom = Hjem)"
+          },
+          "data_description": {
+            "airport_margin_minutes": "90 min = 1 t 30 min; 120 min = 2 t"
+          }
+        },
+        "confirm_origin": {
+          "title": "Bekreft avreiseadresse",
+          "description": "Velg adressen som skal brukes. Margin: {airport_margin}.",
+          "data": {
+            "address_match": "Avreiseadresse"
+          }
+        },
+        "confirm_booking": {
+          "title": "Bekreft uverifisert booking",
+          "description": "Reise: {trip_name}. Flyselskap: {airline}. Adresse: {address}. Transport: {transport}. Margin: {margin}. Ingen bookingdata hentes fra flyselskapet i denne versjonen. Bookingkode og etternavn lagres i Home Assistants lokale konfigurasjon, uten særskilt kryptering. Kryss av hvis du ønsker å lagre reisen med status Venter på oppslag.",
+          "data": {
+            "acknowledge_pending": "Jeg forstår, lagre reisen"
+          }
+        }
+      },
+      "error": {
+        "invalid_name": "Bruk et navn på 1–80 tegn.",
+        "invalid_booking_reference": "Bookingreferansen må bestå av 5–8 bokstaver/tall.",
+        "invalid_surname": "Fyll inn etternavn.",
+        "invalid_margin": "Velg 45–240 min med trinn på 15 min.",
+        "invalid_address": "Skriv en gyldig adresse.",
+        "address_not_found": "Ingen adresser funnet. Prøv en mer nøyaktig adresse.",
+        "address_unavailable": "Enturs adressesøk er ikke tilgjengelig. Prøv igjen.",
+        "required": "Bekreft før lagring."
       }
     }
   }

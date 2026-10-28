@@ -4,11 +4,35 @@
 
 **[Åpne Flight Assistant direkte i HACS](https://my.home-assistant.io/redirect/hacs_repository/?owner=Wesc-9&repository=Flight-assistant-HA&category=integration)**
 
-**Current version: v0.1.2** (first release: v0.1.0) — one Home Assistant device per saved trip, three arrival-time travel proposals and per-trip travel preferences. Airline PNR lookup and actual position tracking are not yet implemented.
+**Current version: v0.1.3** (first release: v0.1.0) — one Home Assistant device per saved trip, three arrival-time travel proposals and per-trip travel preferences. Airline PNR lookup and actual position tracking are not yet implemented.
 
 An early, installable Home Assistant custom integration for following SAS and Norwegian flights, including **Avinor flight status**, **gate and check-in area** (when supplied), **Entur public transport suggestions** and optional **Waze driving departure suggestions**.
 
 > **Important:** Version 0.1.2 cannot retrieve an airline booking using only a PNR/booking reference and surname. SAS/Norwegian do not provide a verified, openly accessible passenger-booking API for this use. Do **not** enter PNRs, surnames or passwords in Home Assistant actions. No fabricated booking lookup, scraping of private endpoints or credential collection is included. The PNR-first workflow is a later development goal, contingent on an authorized method.
+
+## Free driving + public transport suggestions (v0.1.3)
+
+For each **named booking** registered with a real flight number + date, Flight Assistant can now calculate two distinct ways to reach the **first departure airport** from your selected Norwegian address.
+
+1. **Public transport — Entur Journey Planner v3.** No account or API key required. The app requests real journeys from the selected address coordinates to the airport, including transfer legs, line numbers, estimated departure and arrival times. To avoid misleading guidance it rejects walking-only itineraries and journeys that would arrive **after** your chosen airport safety margin. Plans start at most **3 days ahead**; refreshes occur at most every 3 hours far away, and every 15 minutes within 12 hours of the requested arrival.
+2. **Car — Home Assistant's built-in Waze Travel Time integration.** Add **Waze Travel Time** once under **Settings → Devices & services → Add integration**. This optional integration does not require a paid Flight Assistant API key. Once Waze is configured, Flight Assistant calls `waze_travel_time.get_travel_times` with `realtime: true`, uses the fastest valid route returned, and adds your configured parking/walking buffer. **Live traffic** is queried within **12 hours** before flight departure and cached for 10 minutes. We do not treat current traffic as an accurate forecast several months ahead.
+
+Choose `Sammenlign bil og kollektiv`, `Bil` or `Kollektiv` per trip. A blank per-trip address uses the origin chosen when configuring Flight Assistant (or HA Home if none). If you type a different street address, choose a confirmed match from Entur Geocoder so transit can use its coordinates. No Google API key, server, subscription or paid journey-planning service is needed for these two transport modes.
+
+**Four dashboard-ready sensors per named booking:**
+
+- `Kjøretid til flyplassen` (minutes, Waze).
+- `Kollektiv reisetid` (minutes, Entur).
+- `Anbefalt avreise med bil` (timestamp).
+- `Anbefalt avreise med kollektiv` (timestamp).
+
+Existing `Bookingstatus` contains `travel_suggestions` with **Good time / Recommended / Later** (each is a separate airport arrival target). Alternative 2 follows the default of **1 t 30 min domestic / 2 t international**, unless you change the slider. The extra conservative or later option is omitted when it cannot meet the app's minimum buffer rules. User-selected margins are guidelines, *not a replacement for the airline's real check-in or baggage cutoffs*. Details of Entur journey legs are available in the corresponding travel sensor's attributes. The `Flight Assistant Next Flight` sensor can also show related transport fields.
+
+**If a route is not available:** Duration/departure sensors show unknown instead of a fictitious time. Their `status` attribute explains whether the provider is not installed, schedule is too far in the future, a route could not be found, or a valid address is missing. A flight must first be found by flight-number/date via AeroDataBox or Avinor; PNR-only bookings still cannot generate schedules. **Walking and cycling routing is not implemented**; selecting these modes records a preference only.
+
+The original manual `flight_assistant.add_flight` action retains travel suggestions in its flight-status sensor attributes. The four new standalone travel sensors are on named booking devices.
+
+**Testing:** Python unit tests and static syntax checks run on GitHub Actions. Live Entur/Waze service queries and HA OS UI are not yet end-to-end verified using your setup. Before relying on a suggested departure, check your flight and actual public transport service. Never assume departure time can be postponed because the flight is delayed.
 
 ## Register flights by number and date (v0.1.2)
 

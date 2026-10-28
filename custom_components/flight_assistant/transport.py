@@ -19,7 +19,8 @@ from .transport_parsing import shortest_waze_route, parse_entur_patterns
 _LOGGER = logging.getLogger(__name__)
 
 
-async def get_waze_minutes(hass, origin: tuple | str, destination: tuple) -> float | None:
+async def get_waze_minutes(hass, origin: tuple | str, destination: tuple,
+                           vehicle_type: str = "car") -> float | None:
     """Find shortest live drive route via HA's service. Duration is minutes."""
     if not hass.services.has_service("waze_travel_time", "get_travel_times"):
         return None
@@ -33,7 +34,7 @@ async def get_waze_minutes(hass, origin: tuple | str, destination: tuple) -> flo
                 "region": "eu",
                 "realtime": True,
                 "units": "metric",
-                "vehicle_type": "car",
+                "vehicle_type": "taxi" if vehicle_type == "taxi" else "car",
             },
             blocking=True,
             return_response=True,
@@ -70,7 +71,8 @@ query($fromLat: Float!, $fromLon: Float!, $toLat: Float!, $toLon: Float!, $when:
 
 
 async def get_entur_journey(
-    hass, origin: tuple, destination: tuple, arrival_target: datetime
+    hass, origin: tuple, destination: tuple, arrival_target: datetime,
+    preferred_mode: str | None = None,
 ) -> dict | None:
     """Return last feasible public-transport journey arriving before target."""
     variables = {
@@ -92,7 +94,7 @@ async def get_entur_journey(
         if payload.get("errors"):
             _LOGGER.warning("Entur journey planner rejected query")
             return None
-        return parse_entur_patterns(payload, arrival_target, parse_datetime)
+        return parse_entur_patterns(payload, arrival_target, parse_datetime, preferred_mode)
     except (ClientError, asyncio.TimeoutError, TypeError, ValueError, KeyError) as exc:
         _LOGGER.warning("Entur journey planner unavailable: %s", type(exc).__name__)
         return None

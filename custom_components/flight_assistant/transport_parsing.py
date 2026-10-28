@@ -25,7 +25,7 @@ def shortest_waze_route(result):
     return min(valid) if valid else None
 
 
-def parse_entur_patterns(payload, target, parse_datetime):
+def parse_entur_patterns(payload, target, parse_datetime, preferred_mode=None):
     """Find latest public-transport itinerary arriving before requested margin.
 
     Ignore walking-only itineraries: a public-transport alternative must contain
@@ -55,6 +55,11 @@ def parse_entur_patterns(payload, target, parse_datetime):
             and str(leg.get("mode")).lower() not in ("foot", "walk", "walking")
         ]
         if not public_legs:
+            continue
+        vehicle_modes = {str(x.get("mode") or "").lower() for x in public_legs}
+        if preferred_mode == "bus" and not vehicle_modes.intersection({"bus", "coach"}):
+            continue
+        if preferred_mode == "train" and not vehicle_modes.intersection({"rail", "train"}):
             continue
         first_leg = legs[0] if isinstance(legs[0], dict) else {}
         last_leg = legs[-1] if isinstance(legs[-1], dict) else {}

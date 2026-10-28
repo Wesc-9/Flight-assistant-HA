@@ -9,6 +9,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from .const import DOMAIN
 from .planning import time_progress_percent
 from .parsing import parse_datetime
+from .trip_setup import airline_display
 
 async def async_setup_entry(hass, entry, async_add_entities):
     coordinator = hass.data["flight_assistant"][entry.entry_id]
@@ -203,7 +204,7 @@ class PendingBookingSensor(CoordinatorEntity, SensorEntity):
         resolved = record.get("segments") or []
         return {
             "trip_name": self._booking.title,
-            "airline": "SAS" if d.get("airline") == "sas" else "Norwegian",
+            "airline": airline_display(d.get("airline", "")),
             "booking_verified": False,
             "flight_details_available": any(x.get("status") == "found" for x in resolved),
             "flight_tracking_available": False,

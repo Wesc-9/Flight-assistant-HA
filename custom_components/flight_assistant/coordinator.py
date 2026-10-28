@@ -408,8 +408,8 @@ class FlightCoordinator(DataUpdateCoordinator):
         margin = max(45, min(240, round(margin / 15) * 15))
         checked_bag = bool(prefs.get("checked_bag", False))
         mode = prefs.get("transport_mode", "both")
-        drive_enabled = mode in ("both", "drive")
-        transit_enabled = mode in ("both", "transit")
+        drive_enabled = mode in ("both", "drive", "taxi")
+        transit_enabled = mode in ("both", "transit", "bus", "train")
         address = prefs.get("departure_address")
         manual_lat = prefs.get("departure_latitude")
         manual_lon = prefs.get("departure_longitude")
@@ -443,7 +443,10 @@ class FlightCoordinator(DataUpdateCoordinator):
             if cached and now - cached[0] < timedelta(minutes=10):
                 drive_minutes = cached[1]
             else:
-                drive_minutes = await get_waze_minutes(self.hass, driving_origin, coords)
+                drive_minutes = await get_waze_minutes(
+                    self.hass, driving_origin, coords,
+                    vehicle_type="taxi" if mode == "taxi" else "car",
+                )
                 self._drive_cache[uid] = (now, drive_minutes)
         data["drive_minutes"] = drive_minutes
         data["drive_duration_text"] = minutes_text(drive_minutes) if drive_minutes is not None else None
@@ -455,7 +458,10 @@ class FlightCoordinator(DataUpdateCoordinator):
             data["drive_status"] = "install_waze_travel_time"
         else:
             data["drive_status"] = "available" if drive_minutes is not None else "route_unavailable"
-        data["driving_source"] = "Waze (live traffic)" if drive_minutes is not None else None
+        data["driving_source"] = (
+            "Waze taxi estimate (pickup wait not included)" if mode == "taxi"
+            else "Waze (live traffic)"
+        ) if drive_minutes is not None else None
 
         # Match each arrival window against a REAL Entur itinerary.
         async def transit_for(window):
@@ -473,7 +479,10 @@ class FlightCoordinator(DataUpdateCoordinator):
                          else timedelta(hours=3))
             if cached and now - cached[0] < cache_age:
                 return cached[1]
-            result = await get_entur_journey(self.hass, transit_coords, coords, target)
+            result = await get_entur_journey(
+                self.hass, transit_coords, coords, target,
+                preferred_mode=mode if mode in ("bus", "train") else None,
+            )
             self._entur_cache[cache_key] = (now, result)
             return result
 
@@ -527,6 +536,10 @@ class FlightCoordinator(DataUpdateCoordinator):
             data["reason"] = (
                 "Gange og sykling kan velges, men ruteberegning for disse "
                 "transportmåtene er ennå ikke lagt til."
+            )
+        elif mode == "taxi":
+            data["reason"] = (
+                "Taxi bruker Waze-kjøretid. Venting på taxi og påstigning er ikke inkludert."
             )
         if address and not has_manual_coords and transit_enabled:
             data["reason"] = "Transit needs address coordinates; Waze can use the address text."

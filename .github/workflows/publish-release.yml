@@ -49,11 +49,10 @@ jobs:
         run: |
           set -euo pipefail
           tag="v${VERSION}"
-          if gh release view "$tag" >/dev/null 2>&1; then
-            echo "Published release $tag already exists, no duplicate needed."
-            exit 0
-          fi
-          cat > /tmp/flight-assistant-notes.md <<'NOTES'
+          if [[ -f "docs/releases/${tag}.md" ]]; then
+            cp "docs/releases/${tag}.md" /tmp/flight-assistant-notes.md
+          else
+            cat > /tmp/flight-assistant-notes.md <<'NOTES'
           Flight Assistant for Home Assistant — first test release.
 
           Features:
@@ -72,4 +71,10 @@ jobs:
 
           Please create a Home Assistant backup before installing an early version.
           NOTES
-          gh release create "$tag" --target "$GITHUB_SHA" --title "$tag — Flight Assistant" --notes-file /tmp/flight-assistant-notes.md --latest
+          fi
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release edit "$tag" --notes-file /tmp/flight-assistant-notes.md --title "$tag — Flight Assistant"
+            echo "Updated existing release notes for $tag."
+          else
+            gh release create "$tag" --target "$GITHUB_SHA" --title "$tag — Flight Assistant" --notes-file /tmp/flight-assistant-notes.md --latest
+          fi

@@ -42,15 +42,20 @@ REGISTRATION = [("manual", "Flynummer og dato (anbefalt)"),
                 ("pnr_pending", "PNR – lagre til oppslag støttes")]
 
 
-def global_schema(values):
-    return vol.Schema({
+def global_schema(values, include_provider=False):
+    fields = {
         vol.Optional("home_address", default=values.get("home_address", "")): text_field(),
         vol.Required("airport_margin_minutes",
                      default=values.get("airport_margin_minutes", 90)): slider(45, 240, 15),
         vol.Required("drive_buffer_minutes",
                      default=values.get("drive_buffer_minutes", DEFAULT_EXTRA_DRIVE_MINUTES)):
             slider(0, 120, 5),
-    })
+    }
+    if include_provider:
+        # Blank means keep stored key; do not echo a saved secret into the form.
+        fields[vol.Optional("aerodatabox_api_key")] = text_field(password=True)
+        fields[vol.Optional("clear_aerodatabox_key", default=False)] = selector.BooleanSelector()
+    return vol.Schema(fields)
 
 def booking_identity_schema(values):
     return vol.Schema({
@@ -191,7 +196,12 @@ class FlightAssistantOptionsFlow(AddressSteps, config_entries.OptionsFlow):
         errors = {}
         if user_input is not None:
             try:
-                values, found = await self._resolve_address(dict(user_input), "home_address")
+                values = dict(user_input)
+                existing_key = self.config_entry.options.get("aerodatabox_api_key", "")
+                key = (values.pop("aerodatabox_api_key", "") or "").strip()
+                clear = values.pop("clear_aerodatabox_key", False)
+                values["aerodatabox_api_key"] = "" if clear else (key or existing_key)
+                values, found = await self._resolve_address(values, "home_address")
                 if found:
                     return await self.async_step_confirm_address()
                 return self.async_create_entry(title="", data=values)
@@ -200,7 +210,7 @@ class FlightAssistantOptionsFlow(AddressSteps, config_entries.OptionsFlow):
         defaults = {**self.config_entry.data, **self.config_entry.options}
         return self.async_show_form(
             step_id="init",
-            data_schema=global_schema(user_input or defaults),
+            data_schema=global_schema(user_input or defaults, include_provider=True),
             errors=errors,
         )
 
@@ -342,9 +352,11 @@ class BookingSubentryFlow(AddressSteps, config_entries.ConfigSubentryFlow):
                     # Stored privately in HA config entries, not exposed on sensors.
                     # This does not perform an airline request.
                     data={
-                        **self._values,
+                        **{key: value for key, value in self._values.items()
+                           if self._values.get("registration_mode") != "manual"
+                           or key not in ("booking_reference", "surname")},
                         "booking_status": (
-                            "pending_avinor" if self._values.get("segments")
+                            "pending_flight_lookup" if self._values.get("segments")
                             else "pending_airline_lookup"
                         ),
                     },

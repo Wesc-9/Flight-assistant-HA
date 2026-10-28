@@ -33,7 +33,8 @@ async def async_setup_entry(hass, entry, async_add_entities):
     add_new()
     for booking in entry.get_subentries_of_type("booking"):
         async_add_entities(
-            [PendingBookingSensor(booking)], config_subentry_id=booking.subentry_id
+            [PendingBookingSensor(coordinator, booking), BookingCountdownSensor(coordinator, booking)],
+            config_subentry_id=booking.subentry_id
         )
     entry.async_on_unload(coordinator.async_add_listener(add_new))
 
@@ -140,13 +141,14 @@ class NextFlightSensor(CoordinatorEntity, SensorEntity):
         }
 
 
-class PendingBookingSensor(SensorEntity):
+class PendingBookingSensor(CoordinatorEntity, SensorEntity):
     """One per named booking; no airline data has been retrieved yet."""
     _attr_icon = "mdi:ticket-confirmation-outline"
     _attr_has_entity_name = True
     _attr_name = "Bookingstatus"
 
-    def __init__(self, booking):
+    def __init__(self, coordinator, booking):
+        super().__init__(coordinator)
         self._booking = booking
         self._attr_unique_id = f"flight_assistant_booking_{booking.subentry_id}"
         self._attr_device_info = DeviceInfo(
@@ -158,22 +160,61 @@ class PendingBookingSensor(SensorEntity):
 
     @property
     def native_value(self):
-        return "Venter på flyselskapoppslag"
+        data = self.coordinator.booking_records.get(self._booking.subentry_id, {})
+        if data.get("status") == "resolved":
+            return "Flyreise funnet"
+        if data.get("status") == "partial":
+            return "Delvis funnet"
+        return "Venter på flyoppslag"
 
     @property
     def extra_state_attributes(self):
-        """Never publish booking reference, surname, or raw config data."""
-        d = self._booking.data
+        """Never publish passenger PNR, surname or API key."""
         from .display import minutes_text
+        d = self._booking.data
+        record = self.coordinator.booking_records.get(self._booking.subentry_id, {})
+        resolved = record.get("segments") or []
         return {
             "trip_name": self._booking.title,
             "airline": "SAS" if d.get("airline") == "sas" else "Norwegian",
             "booking_verified": False,
-            "flight_details_available": False,
+            "flight_details_available": any(x.get("status") == "found" for x in resolved),
             "flight_tracking_available": False,
             "transport_mode": d.get("transport_mode", "both"),
             "checked_bag": d.get("checked_bag", False),
             "airport_margin": minutes_text(d.get("airport_margin_minutes", 90)),
             "origin_address": d.get("resolved_origin_address", "Home"),
-            "note": "Bookingen er lagret, men har ikke blitt hentet fra flyselskapet.",
+            "segments": resolved,
+            "data_source": "AeroDataBox/Avinor" if resolved else None,
+            "note": record.get("note", "Avventer gyldige flydata."),
         }
+
+
+class BookingCountdownSensor(CoordinatorEntity, SensorEntity):
+    """Countdown for the first resolved leg of a named booking."""
+    _attr_icon = "mdi:timer-outline"
+    _attr_has_entity_name = True
+    _attr_name = "Minutter til neste avgang"
+    _attr_native_unit_of_measurement = "min"
+
+    def __init__(self, coordinator, booking):
+        super().__init__(coordinator)
+        self._booking = booking
+        self._attr_unique_id = f"flight_assistant_booking_{booking.subentry_id}_countdown"
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, f"booking_{booking.subentry_id}")},
+            name=booking.title, manufacturer="Flight Assistant",
+            model="Travel itinerary",
+        )
+
+    @property
+    def native_value(self):
+        record = self.coordinator.booking_records.get(self._booking.subentry_id, {})
+        now = dt_util.utcnow()
+        upcoming = [
+            parse_datetime(seg.get("scheduled"))
+            for seg in record.get("segments", [])
+            if seg.get("status") == "found"
+        ]
+        upcoming = [d for d in upcoming if d and d >= now]
+        return round((min(upcoming) - now).total_seconds() / 60) if upcoming else None

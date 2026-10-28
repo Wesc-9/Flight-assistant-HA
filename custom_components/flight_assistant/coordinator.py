@@ -16,6 +16,8 @@ from .const import (
 from .parsing import match_departure, parse_datetime, airport_arrival_target, recommended_drive_departure
 from .transport import get_waze_minutes, get_entur_journey
 from .planning import arrival_windows, driving_leave_at
+from .discovery import classify_match, MAJOR_AIRPORTS
+from .aerodatabox import fetch_number_date, AeroDataBoxError
 import asyncio
 from homeassistant.helpers import device_registry as dr
 
@@ -30,6 +32,9 @@ class FlightCoordinator(DataUpdateCoordinator):
         self.entry = entry
         self.store = Store(hass, STORAGE_VERSION, f"{DOMAIN}.{entry.entry_id}")
         self.flights: dict[str, dict] = {}
+        self.booking_records: dict[str, dict] = {}
+        self._bookings_dirty = False
+        self._search_attempts: dict[tuple[str, int, str], datetime] = {}
         self.transport: dict[str, dict] = {}
         self._drive_cache: dict[str, tuple] = {}
         self._entur_cache: dict[str, tuple] = {}
@@ -41,6 +46,27 @@ class FlightCoordinator(DataUpdateCoordinator):
     async def async_load_flights(self):
         saved = await self.store.async_load() or {}
         self.flights = saved.get("flights", {})
+        self.booking_records = saved.get("booking_records", {})
+        # Purge results older than AeroDataBox Basic's 7-day retention period.
+        # Refresh is gated separately to avoid accidental quota exhaustion.
+        now = dt_util.utcnow()
+        for booking_id, record in list(self.booking_records.items()):
+            if not any(s.subentry_id == booking_id
+                       for s in self.entry.get_subentries_of_type("booking")):
+                del self.booking_records[booking_id]
+                continue
+            for segment in record.get("segments", []):
+                stamp = parse_datetime(segment.get("fetched_at"))
+                if not stamp or now - stamp > timedelta(days=6):
+                    segment["status"] = "pending"
+                    segment.pop("flight", None)
+                    segment.pop("fetched_at", None)
+            record["status"] = "pending"
+
+    async def async_save_all(self):
+        await self.store.async_save({
+            "flights": self.flights, "booking_records": self.booking_records,
+        })
 
     async def async_add_flight(self, flight_number, origin, scheduled, destination=None,
                                preferences=None, arrival_scheduled=None):
@@ -53,7 +79,7 @@ class FlightCoordinator(DataUpdateCoordinator):
             "preferences": preferences or {},
             "arrival_scheduled": arrival_scheduled,
         }
-        await self.store.async_save({"flights": self.flights})
+        await self.async_save_all()
         await self.async_request_refresh()
         return uid
 
@@ -66,7 +92,7 @@ class FlightCoordinator(DataUpdateCoordinator):
             if key == uid or (isinstance(key, tuple) and key[0] == uid):
                 self._entur_cache.pop(key, None)
         self._drive_cache.pop(uid, None)
-        await self.store.async_save({"flights": self.flights})
+        await self.async_save_all()
         await self.async_request_refresh()
         registry = dr.async_get(self.hass)
         device = registry.async_get_device(identifiers={(DOMAIN, uid)}, connections=set())
@@ -128,8 +154,143 @@ class FlightCoordinator(DataUpdateCoordinator):
                 self.transport.pop(uid, None)
 
         if dirty:
-            await self.store.async_save({"flights": self.flights})
+            await self.async_save_all()
+        await self._async_update_bookings(now)
         return dict(self.flights)
+
+    async def _async_update_bookings(self, now):
+        """Resolve user-submitted flight numbers, minimizing API quota use.
+
+        Each segment is independently resolved. The original flight number/date
+        remain authoritative user input when any provider is unavailable.
+        """
+        subentries = self.entry.get_subentries_of_type("booking")
+        active = {s.subentry_id for s in subentries}
+        changed = False
+        for removed in set(self.booking_records) - active:
+            del self.booking_records[removed]
+            changed = True
+        api_key = self.setting("aerodatabox_api_key", "")
+        # Strict upper bound on paid-tier-style calls per 3-min update (2 units each).
+        # A successful lookup is cached for 6 days and never requested every poll.
+        calls_this_cycle = 0
+        for booking in subentries:
+            raw_segments = booking.data.get("segments", [])
+            if not raw_segments:
+                continue  # PNR-only: no flight dates to resolve.
+            current = self.booking_records.setdefault(
+                booking.subentry_id, {"status": "pending", "segments": []}
+            )
+            old_by_slot = {
+                i: item for i, item in enumerate(current.get("segments") or [])
+            }
+            results = []
+            for i, segment in enumerate(raw_segments):
+                number = segment.get("flight_number")
+                travel_date = segment.get("flight_date")
+                origin = segment.get("departure_airport")
+                if not number or not travel_date:
+                    continue
+                try:
+                    distance = (datetime.fromisoformat(travel_date).date() - now.date()).days
+                except ValueError:
+                    continue
+                prev = old_by_slot.get(i, {})
+                if prev.get("flight_number") != number or prev.get("flight_date") != travel_date:
+                    prev = {}
+                cached = dict(prev)
+                cached.update({"flight_number": number, "flight_date": travel_date,
+                               "departure_airport": origin})
+                fetched = parse_datetime(cached.get("fetched_at"))
+                if fetched and now - fetched >= timedelta(days=6):
+                    cached.pop("flight", None)
+                    cached.pop("fetched_at", None)
+                    cached["status"] = "pending"
+                if distance > 365:
+                    cached.update(status="pending", reason="outside_365_day_window")
+                elif distance < -1:
+                    cached.setdefault("reason", "past_flight")
+                elif (cached.get("status") == "found" and cached.get("flight")
+                      and fetched and now - fetched < timedelta(days=6)):
+                    pass  # Still fresh; no additional billed lookup.
+                else:
+                    attempt_key = (booking.subentry_id, i,
+                                   "aero" if api_key else "avinor")
+                    last_attempt = self._search_attempts.get(attempt_key)
+                    if last_attempt and now - last_attempt < timedelta(hours=6):
+                        cached.setdefault("status", "pending")
+                    elif api_key and calls_this_cycle < 2:
+                        self._search_attempts[attempt_key] = now
+                        calls_this_cycle += 1
+                        try:
+                            outcome, flight = await fetch_number_date(
+                                self.hass, api_key, number, travel_date, origin
+                            )
+                            cached["status"] = outcome
+                            cached["reason"] = None if flight else outcome
+                            if flight:
+                                cached.update(flight=flight, fetched_at=now.isoformat())
+                            # Respect the API request rate ceiling of ~1/s.
+                            await asyncio.sleep(1.1)
+                        except AeroDataBoxError as exc:
+                            cached.update(status="pending", reason=str(exc))
+                    elif not api_key and 0 <= distance <= 13:
+                        self._search_attempts[attempt_key] = now
+                        # Known origin: one airport. No origin: five major airports
+                        # to avoid scraping the complete national timetable.
+                        airports = [origin] if origin else list(MAJOR_AIRPORTS[:5])
+                        data = {}
+                        for airport in airports:
+                            try:
+                                data[airport] = await fetch_departures(
+                                    self.hass, airport, hours_ahead=min(336, (distance+2)*24)
+                                )
+                            except RuntimeError:
+                                continue
+                        outcome, match = classify_match(data, number, travel_date)
+                        cached["status"] = outcome
+                        cached["reason"] = outcome if not match else None
+                        if match:
+                            cached["flight"] = {
+                                "flight_number": number,
+                                "origin": match["origin"],
+                                "destination": match.get("destination"),
+                                "scheduled": match["scheduled"],
+                                "arrival_scheduled": None,
+                                "gate": match.get("gate"),
+                                "check_in": match.get("check_in"),
+                                "status": "Scheduled",
+                                "source": "Avinor",
+                                "airline_verified": False,
+                            }
+                            cached["fetched_at"] = now.isoformat()
+                    else:
+                        cached.setdefault("status", "pending")
+                        cached["reason"] = (
+                            "aerodatabox_key_not_set" if not api_key else "lookup_deferred"
+                        )
+                results.append(cached)
+
+            statuses = [r.get("status") for r in results]
+            if statuses and all(s == "found" for s in statuses):
+                status = "resolved"
+            elif any(s == "found" for s in statuses):
+                status = "partial"
+            else:
+                status = "pending"
+            # Only store flat, allowlisted safe flight fields and lookup status.
+            new_record = {"status": status, "segments": results,
+                          "note": (
+                              "Finner flydata fra gratis datakilder."
+                              if status != "resolved" else
+                              "Ruteinformasjon hentet fra tredjepart, ikke bekreftet PNR."
+                          )}
+            if new_record != current:
+                self.booking_records[booking.subentry_id] = new_record
+                changed = True
+        if changed:
+            await self.async_save_all()
+        self.async_update_listeners()
 
     async def _refresh_transport(self, uid, flight, scheduled, now):
         """Calculate three airport arrival windows, each with available transport."""

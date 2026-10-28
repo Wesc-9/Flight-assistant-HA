@@ -7,6 +7,11 @@ base = Path(__file__).resolve().parents[1] / "custom_components/flight_assistant
 pkg = types.ModuleType("aero_test")
 pkg.__path__ = [str(base)]
 sys.modules["aero_test"] = pkg
+# Stub aiohttp too; GitHub Actions deliberately has no HA dependencies.
+aiohttp=types.ModuleType("aiohttp")
+aiohttp.ClientError=type("ClientError",(Exception,),{})
+aiohttp.ClientTimeout=lambda **kwargs:kwargs
+sys.modules["aiohttp"]=aiohttp
 # To test pure parsing logic, stub only the two Home Assistant imports.
 for name in ["homeassistant","homeassistant.helpers","homeassistant.helpers.aiohttp_client"]:
     stub=types.ModuleType(name)

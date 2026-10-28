@@ -12,6 +12,8 @@ from homeassistant.helpers import selector
 from .address import AddressError, lookup
 from .const import DOMAIN, DEFAULT_EXTRA_DRIVE_MINUTES
 from .display import minutes_text
+from .parsing import normalize_flight, normalize_airport
+from datetime import date
 
 def text_field(password=False):
     return selector.TextSelector(selector.TextSelectorConfig(
@@ -36,6 +38,9 @@ MODES = [("both", "Sammenlign bil og kollektiv"),
          ("bike", "Sykkel (rute kommer senere)")]
 TYPES = [("domestic", "Innenlands"), ("international", "Utenlands")]
 AIRLINES = [("sas", "SAS"), ("norwegian", "Norwegian")]
+REGISTRATION = [("manual", "Flynummer og dato (anbefalt)"),
+                ("pnr_pending", "PNR – lagre til oppslag støttes")]
+
 
 def global_schema(values):
     return vol.Schema({
@@ -50,14 +55,34 @@ def global_schema(values):
 def booking_identity_schema(values):
     return vol.Schema({
         vol.Required("trip_name", default=values.get("trip_name", "")): text_field(),
+        vol.Required("registration_mode",
+                     default=values.get("registration_mode", "manual")): select(REGISTRATION),
         vol.Required("airline", default=values.get("airline", "sas")): select(AIRLINES),
-        vol.Required("booking_reference", default=values.get("booking_reference", "")):
+        vol.Optional("booking_reference", default=values.get("booking_reference", "")):
             text_field(password=True),
-        vol.Required("surname", default=values.get("surname", "")):
+        vol.Optional("surname", default=values.get("surname", "")):
             text_field(password=True),
         vol.Required("journey_type", default=values.get("journey_type", "domestic")):
             select(TYPES),
     })
+
+
+def flight_schema(values):
+    return vol.Schema({
+        vol.Required("flight_number", default=values.get("flight_number", "")):
+            text_field(),
+        vol.Required("flight_date", default=values.get("flight_date", date.today().isoformat())):
+            selector.DateSelector(),
+        vol.Optional("departure_airport", default=values.get("departure_airport", "")):
+            text_field(),
+    })
+
+
+def more_flights_schema():
+    return vol.Schema({
+        vol.Required("add_another_flight", default=False): selector.BooleanSelector(),
+    })
+
 
 def trip_travel_schema(values, margin):
     return vol.Schema({
@@ -190,6 +215,7 @@ class BookingSubentryFlow(AddressSteps, config_entries.ConfigSubentryFlow):
         self._setup_address()
         self._identity = {}
         self._values = {}
+        self._segments = []
 
     async def async_step_user(self, user_input=None):
         errors = {}
@@ -197,15 +223,22 @@ class BookingSubentryFlow(AddressSteps, config_entries.ConfigSubentryFlow):
             name = (user_input.get("trip_name") or "").strip()
             pnr = re.sub(r"\s+", "", user_input.get("booking_reference") or "").upper()
             surname = (user_input.get("surname") or "").strip()
+            mode = user_input.get("registration_mode", "manual")
             if not (1 <= len(name) <= 80):
                 errors["trip_name"] = "invalid_name"
-            elif not re.fullmatch(r"[A-Z0-9]{5,8}", pnr):
+            elif (pnr and not surname) or (surname and not pnr) or (
+                mode == "pnr_pending" and not pnr
+            ):
+                errors["booking_reference"] = "booking_pair_required"
+            elif pnr and not re.fullmatch(r"[A-Z0-9]{5,8}", pnr):
                 errors["booking_reference"] = "invalid_booking_reference"
-            elif not (1 <= len(surname) <= 100):
+            elif len(surname) > 100:
                 errors["surname"] = "invalid_surname"
             else:
                 self._identity = {**user_input, "trip_name": name,
                                   "booking_reference": pnr, "surname": surname}
+                if mode == "manual":
+                    return await self.async_step_flight()
                 return await self.async_step_travel()
         return self.async_show_form(
             step_id="user",
@@ -213,10 +246,61 @@ class BookingSubentryFlow(AddressSteps, config_entries.ConfigSubentryFlow):
             errors=errors,
         )
 
+    async def async_step_flight(self, user_input=None):
+        """Enter a flight number/date, optionally supplying origin to disambiguate."""
+        errors = {}
+        if user_input is not None:
+            try:
+                number = normalize_flight(user_input["flight_number"])
+                travel_date = date.fromisoformat(user_input["flight_date"])
+                origin = (user_input.get("departure_airport") or "").strip()
+                if origin:
+                    origin = normalize_airport(origin)
+                segment = {
+                    "flight_number": number,
+                    "flight_date": travel_date.isoformat(),
+                    "departure_airport": origin or None,
+                }
+                if segment in self._segments:
+                    errors["base"] = "duplicate_flight"
+                elif len(self._segments) >= 8:
+                    errors["base"] = "too_many_flights"
+                else:
+                    self._segments.append(segment)
+                    return await self.async_step_more_flights()
+            except (ValueError, TypeError, KeyError):
+                errors["base"] = "invalid_flight"
+        return self.async_show_form(
+            step_id="flight",
+            data_schema=flight_schema(user_input or {}),
+            errors=errors,
+        )
+
+    async def async_step_more_flights(self, user_input=None):
+        """Add stopover legs, one at a time; do not invent connecting flights."""
+        if user_input is not None:
+            if user_input.get("add_another_flight"):
+                if len(self._segments) >= 8:
+                    return await self.async_step_travel()
+                return await self.async_step_flight()
+            return await self.async_step_travel()
+        return self.async_show_form(
+            step_id="more_flights",
+            data_schema=more_flights_schema(),
+            description_placeholders={
+                "segments": ", ".join(
+                    f"{x['flight_number']} ({x['flight_date']})"
+                    for x in self._segments
+                ),
+            },
+        )
+
     async def async_step_travel(self, user_input=None):
         errors = {}
         if user_input is not None:
             data = {**self._identity, **user_input}
+            if self._identity.get("registration_mode") == "manual":
+                data["segments"] = list(self._segments)
             data["airport_margin_minutes"] = int(data["airport_margin_minutes"])
             try:
                 if not (45 <= data["airport_margin_minutes"] <= 240
@@ -257,7 +341,13 @@ class BookingSubentryFlow(AddressSteps, config_entries.ConfigSubentryFlow):
                     title=self._values["trip_name"],
                     # Stored privately in HA config entries, not exposed on sensors.
                     # This does not perform an airline request.
-                    data={**self._values, "booking_status": "pending_airline_lookup"},
+                    data={
+                        **self._values,
+                        "booking_status": (
+                            "pending_avinor" if self._values.get("segments")
+                            else "pending_airline_lookup"
+                        ),
+                    },
                 )
             return self.async_show_form(
                 step_id="confirm_booking",
@@ -284,4 +374,8 @@ class BookingSubentryFlow(AddressSteps, config_entries.ConfigSubentryFlow):
             "margin": minutes_text(self._values["airport_margin_minutes"]),
             "transport": dict(MODES)[self._values["transport_mode"]],
             "address": self._values.get("resolved_origin_address") or "Home",
+            "segments": ", ".join(
+                f"{x['flight_number']} ({x['flight_date']})"
+                for x in self._values.get("segments", [])
+            ) or "Ingen – PNR-oppslag er ikke tilgjengelig",
         }

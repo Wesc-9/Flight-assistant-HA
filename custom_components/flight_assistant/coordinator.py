@@ -466,7 +466,12 @@ class FlightCoordinator(DataUpdateCoordinator):
                 return None
             cache_key = (uid, window["airport_arrival_target"])
             cached = self._entur_cache.get(cache_key)
-            if cached and now - cached[0] < timedelta(minutes=15):
+            # Farther in advance, 3-hour cache is enough; refresh more
+            # frequently only near airport departure for live changes.
+            cache_age = (timedelta(minutes=15)
+                         if target - now <= timedelta(hours=12)
+                         else timedelta(hours=3))
+            if cached and now - cached[0] < cache_age:
                 return cached[1]
             result = await get_entur_journey(self.hass, transit_coords, coords, target)
             self._entur_cache[cache_key] = (now, result)
@@ -514,9 +519,15 @@ class FlightCoordinator(DataUpdateCoordinator):
         else:
             data["public_transport_status"] = "no_route_available"
         data["transport_status"] = (
-            "available" if data["drive_minutes"] is not None
+            "mode_not_supported_yet" if mode in ("walk", "bike")
+            else "available" if data["drive_minutes"] is not None
             or data["public_transport"] is not None else "waiting_for_transport"
         )
+        if mode in ("walk", "bike"):
+            data["reason"] = (
+                "Gange og sykling kan velges, men ruteberegning for disse "
+                "transportmåtene er ennå ikke lagt til."
+            )
         if address and not has_manual_coords and transit_enabled:
             data["reason"] = "Transit needs address coordinates; Waze can use the address text."
         elif drive_enabled and drive_minutes is None and transit_enabled and all(not x for x in routes):

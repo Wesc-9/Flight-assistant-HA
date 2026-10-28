@@ -37,9 +37,15 @@
         "data": {
           "home_address": "Address (blank = Home)",
           "airport_margin_minutes": "Minutes before scheduled departure",
-          "drive_buffer_minutes": "Parking / walking buffer"
+          "drive_buffer_minutes": "Parking / walking buffer",
+          "aerodatabox_api_key": "AeroDataBox RapidAPI key (optional)",
+          "clear_aerodatabox_key": "Remove existing API key"
         },
-        "description": "Enter a Norwegian street address or leave blank for Home Assistant Home. Time controls show minutes; the confirmation step shows hours and minutes."
+        "description": "Configure departure address and margins. Optional: enter a RapidAPI AeroDataBox Basic key ($0/month with limits); confirm the free tier in RapidAPI. Blank key retains an existing key.",
+        "data_description": {
+          "aerodatabox_api_key": "Long-range lookup. RapidAPI Basic: 400 units/month hard cap; registration may require payment card. No key: Avinor close to departure.",
+          "clear_aerodatabox_key": "Check to disable AeroDataBox and clear the saved key."
+        }
       },
       "confirm_address": {
         "title": "Confirm address",
@@ -93,13 +99,14 @@
       "step": {
         "user": {
           "title": "Add booking",
-          "description": "Name your trip and enter booking reference and surname. Airline lookup is not available yet; details are stored in Home Assistant.",
+          "description": "Name your trip. Choose manual registration and enter flight number + date in the next step (PNR not required). PNR-only booking lookup is not enabled yet.",
           "data": {
             "trip_name": "Trip name",
             "airline": "Airline",
             "booking_reference": "Booking reference (PNR)",
             "surname": "Surname",
-            "journey_type": "Domestic or international"
+            "journey_type": "Domestic or international",
+            "registration_mode": "Registration method"
           }
         },
         "travel": {
@@ -124,9 +131,25 @@
         },
         "confirm_booking": {
           "title": "Confirm unverified booking",
-          "description": "Trip: {trip_name}. Airline: {airline}. Address: {address}. Transport: {transport}. Margin: {margin}. No airline data is fetched in this version. PNR and surname are saved in HA config storage without additional encryption. Confirm to save the pending booking.",
+          "description": "Trip: {trip_name}. Airline: {airline}. Legs: {segments}. From: {address}. Transport: {transport}. Margin: {margin}. Flight number/date are looked up using optional AeroDataBox and later Avinor. PNR and surname do not perform a lookup. If provided, they are stored in Home Assistant without additional encryption.",
           "data": {
             "acknowledge_pending": "I understand, save the trip"
+          }
+        },
+        "flight": {
+          "title": "Flight number and date",
+          "description": "Enter the flight number and date for this leg. Departure airport is optional but improves free Avinor matching. Departure time is found if there is a match.",
+          "data": {
+            "flight_number": "Flight number (e.g. SK345)",
+            "flight_date": "Departure date",
+            "departure_airport": "Departure airport (optional IATA)"
+          }
+        },
+        "more_flights": {
+          "title": "More flight legs?",
+          "description": "Saved legs: {segments}. Check the box to add a connecting flight leg.",
+          "data": {
+            "add_another_flight": "Add another flight leg"
           }
         }
       },
@@ -138,7 +161,11 @@
         "invalid_address": "Enter a valid address.",
         "address_not_found": "No addresses found.",
         "address_unavailable": "Entur address search is unavailable.",
-        "required": "Please confirm before saving."
+        "required": "Please confirm before saving.",
+        "invalid_flight": "Invalid flight number, date or IATA code.",
+        "duplicate_flight": "This flight leg is already added.",
+        "too_many_flights": "Maximum eight legs per trip.",
+        "booking_pair_required": "Provide both PNR and surname or choose manual entry without them."
       }
     }
   }

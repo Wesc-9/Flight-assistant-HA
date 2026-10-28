@@ -4,19 +4,35 @@
 
 **[Åpne Flight Assistant direkte i HACS](https://my.home-assistant.io/redirect/hacs_repository/?owner=Wesc-9&repository=Flight-assistant-HA&category=integration)**
 
-**Current version: v0.1.1** (first release: v0.1.0) — one Home Assistant device per saved trip, three arrival-time travel proposals and per-trip travel preferences. Airline PNR lookup and actual position tracking are not yet implemented.
+**Current version: v0.1.2** (first release: v0.1.0) — one Home Assistant device per saved trip, three arrival-time travel proposals and per-trip travel preferences. Airline PNR lookup and actual position tracking are not yet implemented.
 
 An early, installable Home Assistant custom integration for following SAS and Norwegian flights, including **Avinor flight status**, **gate and check-in area** (when supplied), **Entur public transport suggestions** and optional **Waze driving departure suggestions**.
 
-> **Important:** Version 0.1.1 cannot retrieve an airline booking using only a PNR/booking reference and surname. SAS/Norwegian do not provide a verified, openly accessible passenger-booking API for this use. Do **not** enter PNRs, surnames or passwords in Home Assistant actions. No fabricated booking lookup, scraping of private endpoints or credential collection is included. The PNR-first workflow is a later development goal, contingent on an authorized method.
+> **Important:** Version 0.1.2 cannot retrieve an airline booking using only a PNR/booking reference and surname. SAS/Norwegian do not provide a verified, openly accessible passenger-booking API for this use. Do **not** enter PNRs, surnames or passwords in Home Assistant actions. No fabricated booking lookup, scraping of private endpoints or credential collection is included. The PNR-first workflow is a later development goal, contingent on an authorized method.
+
+## Register flights by number and date (v0.1.2)
+
+**No subscription is mandatory.** You can register a trip with name, individual flight number + departure date, and up to eight connecting-flight legs; a booking reference or surname is **not required**. The integration saves all legs immediately even when no external data are available. Each leg is matched independently. A resolved flight displays source attribution; it is **not passenger/PNR verification**.
+
+**Optional long-range lookup:** Open **Settings → Devices & services → Flight Assistant → Configure**, enter a **RapidAPI AeroDataBox Basic** API key and save. Use the $0/month Basic plan only: [RapidAPI pricing](https://rapidapi.com/aedbx-aedbx/api/aerodatabox/pricing). Basic presently lists 400 API units per month with a hard limit; a flight-number/date lookup uses the Tier 2 endpoint (normally 2 units). Account creation may require a payment method; inspect the plan and RapidAPI's bandwidth/overage terms yourself. **Never use a paid plan for this integration unless you choose to.** The code will not initiate a purchase, upgrade, or subscription. It also does not automatically submit a payment method.
+
+- With key: AeroDataBox looks up flights on a selected departure-local date, possibly as far as 365 days ahead **subject to data coverage and RapidAPI Basic plan limits**. 365 days is a maximum permitted query horizon, not guaranteed schedule availability. Results are cached locally for up to six days; unsuccessful responses are rate limited. Only two external queries are allowed per coordinator cycle to protect free quota. No tracking-image, live-location or flight-plan extensions are requested.
+- Without key: **Avinor remains free** for flight dates near departure. With an IATA airport, that origin is checked; without one, an initial lookup searches only five major Norwegian airports (OSL, BGO, TRD, SVG, TOS); supply origin to search smaller airports. Avinor's XML feed only covers Avinor airports, is polled no more frequently than every three minutes during live tracking, and has a 336-hour max TimeTo window.
+- Not found, ambiguous, provider outage, quota exhausted, or out-of-horizon flights remain explicitly **pending**, never fabricated or automatically mapped to the wrong flight.
+- Each saved booking has a device with status and countdown sensors. The global Next Flight sensor can use resolved booking legs.
+- Transport calculations require a resolved first departure and supported airport coordinates. For long-range bookings you may see departure/arrival schedule immediately but no reliable live traffic/Entur itinerary until closer to travel.
+- You can clear the API key in integration settings. The key is stored in Home Assistant config entry options, not in GitHub or sensor attributes, and the integration adds no independent encryption.
+- Email import and direct PNR + surname lookup remain postponed.
+
+**Live-service validation required:** AeroDataBox queries and the Home Assistant subentry workflow have been covered by mock/structural tests, but not with your actual RapidAPI key or in your HA OS installation. If matching is missing, verify the airport code and API subscription before relying on the sensors.
 
 ## Add named booking devices (v0.1.1)
 
 You should configure Flight Assistant **once**. To add a second or subsequent trip, open **Settings → Devices & services → Flight Assistant → Add entry / Add trip**, *not* "Add integration".
 
-Each trip asks for a custom name, airline (SAS/Norwegian), booking reference (PNR), surname, domestic/international, bag, transport mode (car/public transport/both/walking/cycling), airport arrival margin and optional Norwegian departure address. The new flow confirms an address from **Entur Geocoder v3** and lets you save the trip as a pending Home Assistant subentry with a separate device and booking-status sensor.
+Each trip asks for a custom name, airline (SAS/Norwegian), registration mode (manual flight number/date with optional stops, or pending PNR), optional booking reference/surname, domestic/international, bag, transport mode (car/public transport/both/walking/cycling), airport arrival margin and optional Norwegian departure address. The new flow confirms an address from **Entur Geocoder v3** and lets you save the trip as a pending Home Assistant subentry with a separate device and booking-status sensor.
 
-**Caution:** PNR lookups are not connected to SAS or Norwegian in v0.1.1. A saved booking does not prove the airline reservation exists, and no dates, Avinor feed or transport itinerary can be discovered using PNR alone yet. Until an authorized PNR lookup exists, only manually entered flight numbers (Developer Tools action) can receive Avinor updates.
+**Caution:** PNR lookups are not connected to SAS or Norwegian in v0.1.1. A PNR-only booking does not prove an airline reservation exists and cannot return flight details. Manual flight-number/date legs can now be looked up via optional AeroDataBox or Avinor. Neither source confirms that you own a passenger booking.
 
 Booking references and surnames are stored locally in HA's config-entry storage **without extra encryption**, never as sensor attributes, notifications or logs. Protect admin access and backups. The booking flow explicitly warns and asks for confirmation before saving.
 

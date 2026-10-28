@@ -37,9 +37,15 @@
         "data": {
           "home_address": "Adresse (tom = Hjem)",
           "airport_margin_minutes": "Ønsket tid før flyavgang",
-          "drive_buffer_minutes": "Ekstra tid for parkering og gange"
+          "drive_buffer_minutes": "Ekstra tid for parkering og gange",
+          "aerodatabox_api_key": "AeroDataBox RapidAPI-nøkkel (valgfri)",
+          "clear_aerodatabox_key": "Fjern eksisterende API-nøkkel"
         },
-        "description": "Skriv en norsk gateadresse, eller la feltet stå tomt for Hjem i Home Assistant. Tidene velges i minutter, og bekreftelsesskjermen viser også timer og minutter."
+        "description": "Velg hjemmeadresse og tidsmargin. Valgfritt: legg inn RapidAPI-nøkkel fra AeroDataBox Basic ($0/mnd med kvote). Nøkkelen lagres i Home Assistant; kontroller at du bruker gratisplanen. Blankt felt beholder tidligere nøkkel.",
+        "data_description": {
+          "aerodatabox_api_key": "Oppslag for fly mer enn 14 dager frem. RapidAPI Basic har 400 enheter/mnd, hard grense, mulig krav om betalingskort. Ingen nøkkel betyr kun Avinor kort tid før avgang.",
+          "clear_aerodatabox_key": "Huk av for å deaktivere AeroDataBox-oppslag og slette nøkkelen fra integrasjonens innstillinger."
+        }
       },
       "confirm_address": {
         "title": "Bekreft adressen",
@@ -93,13 +99,14 @@
       "step": {
         "user": {
           "title": "Legg til flyreise",
-          "description": "Gi reisen et navn og legg inn bookingreferanse og etternavn. SAS/Norwegian-oppslag er foreløpig ikke tilgjengelig. Opplysningene lagres lokalt i Home Assistant.",
+          "description": "Gi reisen et navn. Velg manuell registrering og skriv inn flynummer + dato på neste skjerm (PNR er ikke påkrevd). Alternativet for PNR-oppslag er ikke aktivt ennå.",
           "data": {
             "trip_name": "Reisens navn",
             "airline": "Flyselskap",
             "booking_reference": "Bookingreferanse (PNR)",
             "surname": "Etternavn",
-            "journey_type": "Innenlands eller utenlands"
+            "journey_type": "Innenlands eller utenlands",
+            "registration_mode": "Registreringsmåte"
           }
         },
         "travel": {
@@ -124,9 +131,25 @@
         },
         "confirm_booking": {
           "title": "Bekreft uverifisert booking",
-          "description": "Reise: {trip_name}. Flyselskap: {airline}. Adresse: {address}. Transport: {transport}. Margin: {margin}. Ingen bookingdata hentes fra flyselskapet i denne versjonen. Bookingkode og etternavn lagres i Home Assistants lokale konfigurasjon, uten særskilt kryptering. Kryss av hvis du ønsker å lagre reisen med status Venter på oppslag.",
+          "description": "Reise: {trip_name}. Flyselskap: {airline}. Flystrekninger: {segments}. Fra: {address}. Transport: {transport}. Margin: {margin}. Flynummer og dato søkes opp hos AeroDataBox (med nøkkel) eller Avinor når tilgjengelig. Bookingreferanse og etternavn brukes ikke til oppslag. Dersom du har fylt dem inn, lagres de lokalt i Home Assistant uten ekstra kryptering.",
           "data": {
             "acknowledge_pending": "Jeg forstår, lagre reisen"
+          }
+        },
+        "flight": {
+          "title": "Flynummer og avreisedato",
+          "description": "Legg inn flynummer og dato for denne strekningen. Avreiseflyplass er valgfritt, men gjør gratis Avinor-oppslag mer pålitelig. Avgangstid hentes automatisk ved treff.",
+          "data": {
+            "flight_number": "Flynummer (f.eks. SK345)",
+            "flight_date": "Avreisedato",
+            "departure_airport": "Avreiseflyplass (valgfri IATA-kode)"
+          }
+        },
+        "more_flights": {
+          "title": "Flere flystrekninger?",
+          "description": "Registrert: {segments}. Huk av dersom du skal bytte fly og ønsker å legge til neste flystrekning.",
+          "data": {
+            "add_another_flight": "Legg til enda en flystrekning"
           }
         }
       },
@@ -138,7 +161,11 @@
         "invalid_address": "Skriv en gyldig adresse.",
         "address_not_found": "Ingen adresser funnet. Prøv en mer nøyaktig adresse.",
         "address_unavailable": "Enturs adressesøk er ikke tilgjengelig. Prøv igjen.",
-        "required": "Bekreft før lagring."
+        "required": "Bekreft før lagring.",
+        "invalid_flight": "Ugyldig flynummer, dato eller IATA-kode.",
+        "duplicate_flight": "Flystrekningen er allerede lagt til.",
+        "too_many_flights": "Maksimalt åtte flystrekninger per reise.",
+        "booking_pair_required": "Fyll inn både PNR og etternavn, eller velg manuell registrering uten begge."
       }
     }
   }

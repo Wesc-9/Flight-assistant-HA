@@ -144,7 +144,10 @@ class NextFlightSensor(CoordinatorEntity, SensorEntity):
                 if airborne and departure and arrival else None
             ),
             "aircraft_live_position_available": False,
-            "attribution": "Flydata fra Avinor – https://www.avinor.no",
+            "attribution": (
+                "AeroDataBox (RapidAPI), Avinor" if flight.get("source") == "AeroDataBox (RapidAPI)"
+                else "Flydata fra Avinor – https://www.avinor.no"
+            ),
         }
 
 
@@ -172,6 +175,8 @@ class PendingBookingSensor(CoordinatorEntity, SensorEntity):
             return "Flyreise funnet"
         if data.get("status") == "partial":
             return "Delvis funnet"
+        if self._booking.data.get("registration_mode") == "pnr_pending":
+            return "Venter på PNR-tilgang"
         return "Venter på flyoppslag"
 
     @property
@@ -195,7 +200,12 @@ class PendingBookingSensor(CoordinatorEntity, SensorEntity):
             "travel_suggestions": record.get("transport", {}).get("suggestions", []),
             "drive_leave_at": record.get("transport", {}).get("drive_leave_at"),
             "public_transport": record.get("transport", {}).get("public_transport"),
-            "data_source": "AeroDataBox/Avinor" if resolved else None,
+            "data_source": sorted({
+                x["flight"].get("source")
+                for x in resolved if x.get("status") == "found" and x.get("flight")
+                and x["flight"].get("source")
+            }),
+            "attribution": "Flight schedules: AeroDataBox (RapidAPI); Norwegian operational data: Avinor.",
             "note": record.get("note", "Avventer gyldige flydata."),
         }
 

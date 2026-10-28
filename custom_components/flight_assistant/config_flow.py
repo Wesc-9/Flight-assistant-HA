@@ -321,9 +321,12 @@ class BookingSubentryFlow(AddressSteps, config_entries.ConfigSubentryFlow):
                 else:
                     if not (data.get("origin_address") or "").strip():
                         # Keep a per-booking origin: Home Assistant's Home is default.
-                        data["departure_latitude"] = self.hass.config.latitude
-                        data["departure_longitude"] = self.hass.config.longitude
-                        data["resolved_origin_address"] = "Home"
+                        # No per-trip override: coordinator uses the default
+                        # origin from Flight Assistant configuration, which
+                        # may be a street address different from HA Home.
+                        data["departure_latitude"] = None
+                        data["departure_longitude"] = None
+                        data["resolved_origin_address"] = "Hjem / standardadresse"
                         self._values = data
                         return await self.async_step_confirm_booking()
                     self._pending = data

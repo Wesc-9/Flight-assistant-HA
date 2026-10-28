@@ -16,6 +16,7 @@ from .const import (
 from .parsing import match_departure, parse_datetime, airport_arrival_target, recommended_drive_departure
 from .transport import get_waze_minutes, get_entur_journey
 from .planning import arrival_windows, driving_leave_at
+from .display import minutes_text
 from .discovery import classify_match, MAJOR_AIRPORTS
 from .aerodatabox import fetch_number_date, AeroDataBoxError
 import asyncio
@@ -335,7 +336,8 @@ class FlightCoordinator(DataUpdateCoordinator):
             if upcoming:
                 first = min(upcoming, key=lambda f: f["scheduled"])
                 scheduled_time = parse_datetime(first["scheduled"])
-                if scheduled_time and scheduled_time - now < timedelta(hours=36):
+                if (scheduled_time and -timedelta(hours=2) <= scheduled_time - now
+                        <= timedelta(days=4)):
                     prefs = booking.data
                     preferences = {
                         "journey_type": prefs.get("journey_type", "domestic"),
@@ -357,6 +359,14 @@ class FlightCoordinator(DataUpdateCoordinator):
                     new_record["transport"] = self.transport.get(
                         "booking_" + booking.subentry_id, {}
                     )
+                elif scheduled_time:
+                    new_record["transport"] = {
+                        "transport_status": "outside_planning_window",
+                        "reason": "Kollektivtider beregnes nærmere reisen; kjøretid basert på trafikk vises først samme dag.",
+                        "suggestions": [],
+                        "drive_minutes": None, "public_transport": None,
+                        "drive_leave_at": None,
+                    }
             if new_record != current:
                 self.booking_records[booking.subentry_id] = new_record
                 changed = True
@@ -405,6 +415,8 @@ class FlightCoordinator(DataUpdateCoordinator):
         data.update({
             "airport": airport, "origin_address": address,
             "transport_mode": mode,
+            "updated_at": now.isoformat(),
+            "transport_status": "calculating",
             "arrive_airport_by": windows[1]["airport_arrival_target"],
             "airport_arrival_margin_minutes": margin,
             "airline_check_in_cutoff_verified": False,
@@ -420,7 +432,16 @@ class FlightCoordinator(DataUpdateCoordinator):
                 drive_minutes = await get_waze_minutes(self.hass, driving_origin, coords)
                 self._drive_cache[uid] = (now, drive_minutes)
         data["drive_minutes"] = drive_minutes
-        data["driving_source"] = "Waze (current conditions)" if drive_minutes is not None else None
+        data["drive_duration_text"] = minutes_text(drive_minutes) if drive_minutes is not None else None
+        if not drive_enabled:
+            data["drive_status"] = "not_requested"
+        elif scheduled - now > timedelta(hours=12):
+            data["drive_status"] = "too_early_for_live_traffic"
+        elif not self.hass.services.has_service("waze_travel_time", "get_travel_times"):
+            data["drive_status"] = "install_waze_travel_time"
+        else:
+            data["drive_status"] = "available" if drive_minutes is not None else "route_unavailable"
+        data["driving_source"] = "Waze (live traffic)" if drive_minutes is not None else None
 
         # Match each arrival window against a REAL Entur itinerary.
         async def transit_for(window):
@@ -451,16 +472,41 @@ class FlightCoordinator(DataUpdateCoordinator):
                 **window, "drive": drive,
                 "public_transport": transit,
                 "transport_available": drive is not None or transit is not None,
+                "airport_margin_text": minutes_text(window["margin_minutes"]),
+                "drive_leave_at": (drive or {}).get("leave_at"),
+                "public_leave_at": (transit or {}).get("leave_at"),
+                "public_duration_text": (
+                    minutes_text(transit["minutes"]) if transit else None
+                ),
             })
         data["suggestions"] = suggestions
         # Legacy attributes and existing dashboard templates use recommendation #2.
         standard = next((v for v in suggestions if v["number"] == 2), None)
         data["drive_leave_at"] = (standard.get("drive") or {}).get("leave_at") if standard else None
         data["public_transport"] = standard.get("public_transport") if standard else None
+        data["transit_duration_minutes"] = (data["public_transport"] or {}).get("minutes")
+        data["transit_duration_text"] = (
+            minutes_text(data["transit_duration_minutes"])
+            if data["transit_duration_minutes"] is not None else None
+        )
+        if not transit_enabled:
+            data["public_transport_status"] = "not_requested"
+        elif transit_coords is None:
+            data["public_transport_status"] = "address_coordinates_required"
+        elif arrival - now > timedelta(days=3):
+            data["public_transport_status"] = "too_early_for_timetable"
+        elif data["public_transport"]:
+            data["public_transport_status"] = "available"
+        else:
+            data["public_transport_status"] = "no_route_available"
+        data["transport_status"] = (
+            "available" if data["drive_minutes"] is not None
+            or data["public_transport"] is not None else "waiting_for_transport"
+        )
         if address and not has_manual_coords and transit_enabled:
             data["reason"] = "Transit needs address coordinates; Waze can use the address text."
         elif drive_enabled and drive_minutes is None and transit_enabled and all(not x for x in routes):
-            data["reason"] = "No confirmed transport itineraries"
+            data["reason"] = "Foreløpig ingen bekreftede kjøretider eller kollektivavganger."
 
         # Fire departure reminder events for suggestion #2 only.
         for transport_mode, departure in (

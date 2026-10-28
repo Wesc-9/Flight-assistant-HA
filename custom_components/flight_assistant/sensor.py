@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from datetime import timedelta
-from homeassistant.components.sensor import SensorEntity
+from homeassistant.components.sensor import SensorEntity, SensorDeviceClass
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 from homeassistant.helpers.device_registry import DeviceInfo
@@ -33,7 +33,13 @@ async def async_setup_entry(hass, entry, async_add_entities):
     add_new()
     for booking in entry.get_subentries_of_type("booking"):
         async_add_entities(
-            [PendingBookingSensor(coordinator, booking), BookingCountdownSensor(coordinator, booking)],
+            [
+                PendingBookingSensor(coordinator, booking),
+                BookingCountdownSensor(coordinator, booking),
+                *(BookingTransportSensor(coordinator, booking, kind)
+                  for kind in ("drive_minutes", "public_minutes",
+                               "drive_leave_at", "public_leave_at")),
+            ],
             config_subentry_id=booking.subentry_id
         )
     entry.async_on_unload(coordinator.async_add_listener(add_new))
@@ -107,13 +113,15 @@ class NextFlightSensor(CoordinatorEntity, SensorEntity):
             (parse_datetime(flight.get("scheduled")), flight)
             for flight in self.coordinator.flights.values()
         ]
-        for item in self.coordinator.booking_records.values():
+        for booking_id, item in self.coordinator.booking_records.items():
             for record in item.get("segments", []):
                 if record.get("status") != "found":
                     continue
                 flight = record.get("flight")
                 if flight:
-                    future.append((parse_datetime(flight.get("scheduled")), flight))
+                    future.append((parse_datetime(flight.get("scheduled")), {
+                        **flight, "_booking_id": booking_id,
+                    }))
         future = [
             (when, flight) for when, flight in future
             if when and when >= now - timedelta(hours=6)
@@ -133,8 +141,15 @@ class NextFlightSensor(CoordinatorEntity, SensorEntity):
         arrival = parse_datetime(flight.get("arrival_scheduled"))
         departure = parse_datetime(flight.get("scheduled"))
         airborne = flight.get("status") == "Departed"
+        transport = (
+            self.coordinator.booking_records.get(
+                flight.get("_booking_id"), {}
+            ).get("transport", {})
+            if flight.get("_booking_id")
+            else self.coordinator.transport.get(flight.get("id"), {})
+        )
         return {
-            **flight, **self.coordinator.transport.get(flight.get("id"), {}),
+            **flight, **transport,
             "count": len(self.coordinator.flights),
             "minutes_to_departure": (round((departure - dt_util.utcnow()).total_seconds() / 60)
                                      if departure else None),
@@ -232,9 +247,89 @@ class BookingCountdownSensor(CoordinatorEntity, SensorEntity):
         record = self.coordinator.booking_records.get(self._booking.subentry_id, {})
         now = dt_util.utcnow()
         upcoming = [
-            parse_datetime(seg.get("scheduled"))
+            parse_datetime((seg.get("flight") or {}).get("scheduled"))
             for seg in record.get("segments", [])
             if seg.get("status") == "found"
         ]
         upcoming = [d for d in upcoming if d and d >= now]
         return round((min(upcoming) - now).total_seconds() / 60) if upcoming else None
+
+
+
+class BookingTransportSensor(CoordinatorEntity, SensorEntity):
+    """Four dashboard-friendly values for each named flight booking."""
+
+    _attr_has_entity_name = True
+    _KINDS = {
+        "drive_minutes": ("Kjøretid til flyplassen", "mdi:car-clock"),
+        "public_minutes": ("Kollektiv reisetid", "mdi:train-car"),
+        "drive_leave_at": ("Anbefalt avreise med bil", "mdi:car-arrow-right"),
+        "public_leave_at": ("Anbefalt avreise med kollektiv", "mdi:bus-clock"),
+    }
+
+    def __init__(self, coordinator, booking, kind):
+        super().__init__(coordinator)
+        self._booking = booking
+        self.kind = kind
+        self._attr_unique_id = (
+            f"flight_assistant_booking_{booking.subentry_id}_{kind}"
+        )
+        self._attr_name, self._attr_icon = self._KINDS[kind]
+        if kind.endswith("_minutes"):
+            self._attr_native_unit_of_measurement = "min"
+        else:
+            self._attr_device_class = SensorDeviceClass.TIMESTAMP
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, f"booking_{booking.subentry_id}")},
+            name=booking.title,
+            manufacturer="Flight Assistant",
+            model="Travel itinerary",
+        )
+
+    @property
+    def _travel(self):
+        return self.coordinator.booking_records.get(
+            self._booking.subentry_id, {}
+        ).get("transport", {})
+
+    @property
+    def native_value(self):
+        travel = self._travel
+        public = travel.get("public_transport") or {}
+        if self.kind == "drive_minutes":
+            value = travel.get("drive_minutes")
+            return round(value) if value is not None else None
+        if self.kind == "public_minutes":
+            return public.get("minutes")
+        if self.kind == "drive_leave_at":
+            return parse_datetime(travel.get("drive_leave_at"))
+        if self.kind == "public_leave_at":
+            return parse_datetime(public.get("leave_at"))
+        return None
+
+    @property
+    def extra_state_attributes(self):
+        """Expose timings and statuses, not booking credentials."""
+        t = self._travel
+        attributes = {
+            "airport_arrival_target": t.get("arrive_airport_by"),
+            "updated_at": t.get("updated_at"),
+            "transport_status": t.get("transport_status"),
+            "note": t.get("reason"),
+        }
+        if self.kind.startswith("drive"):
+            attributes.update({
+                "source": t.get("driving_source"),
+                "status": t.get("drive_status"),
+                "duration": t.get("drive_duration_text"),
+            })
+        else:
+            public = t.get("public_transport") or {}
+            attributes.update({
+                "source": public.get("source"),
+                "status": t.get("public_transport_status"),
+                "duration": t.get("transit_duration_text"),
+                "arrive_at": public.get("arrive_at"),
+                "legs": public.get("legs", []),
+            })
+        return attributes

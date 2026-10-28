@@ -217,10 +217,19 @@ class FlightCoordinator(DataUpdateCoordinator):
                     attempt_key = (booking.subentry_id, i,
                                    "aero" if api_key else "avinor")
                     last_attempt = self._search_attempts.get(attempt_key)
-                    if last_attempt and now - last_attempt < timedelta(hours=6):
+                    saved_attempt = parse_datetime(cached.get("checked_at"))
+                    same_provider = cached.get("last_provider") == (
+                        "aero" if api_key else "avinor"
+                    )
+                    cadence = timedelta(days=6) if api_key else timedelta(hours=12)
+                    if ((last_attempt and now - last_attempt < cadence)
+                            or (same_provider and saved_attempt
+                                and now - saved_attempt < cadence)):
                         cached.setdefault("status", "pending")
                     elif api_key and calls_this_cycle < 2:
                         self._search_attempts[attempt_key] = now
+                        cached["checked_at"] = now.isoformat()
+                        cached["last_provider"] = "aero"
                         calls_this_cycle += 1
                         try:
                             outcome, flight = await fetch_number_date(
@@ -236,6 +245,8 @@ class FlightCoordinator(DataUpdateCoordinator):
                             cached.update(status="pending", reason=str(exc))
                     elif not api_key and 0 <= distance <= 13:
                         self._search_attempts[attempt_key] = now
+                        cached["checked_at"] = now.isoformat()
+                        cached["last_provider"] = "avinor"
                         # Known origin: one airport. No origin: five major airports
                         # to avoid scraping the complete national timetable.
                         airports = [origin] if origin else list(MAJOR_AIRPORTS[:5])
@@ -331,7 +342,10 @@ class FlightCoordinator(DataUpdateCoordinator):
                         "checked_bag": prefs.get("checked_bag", False),
                         "airport_margin_minutes": prefs.get("airport_margin_minutes", 90),
                         "transport_mode": prefs.get("transport_mode", "both"),
-                        "departure_address": prefs.get("resolved_origin_address"),
+                        "departure_address": (
+                            prefs.get("resolved_origin_address")
+                            if prefs.get("origin_address") else None
+                        ),
                         "departure_latitude": prefs.get("departure_latitude"),
                         "departure_longitude": prefs.get("departure_longitude"),
                     }

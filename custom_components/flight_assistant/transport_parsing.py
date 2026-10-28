@@ -33,7 +33,10 @@ def parse_entur_patterns(payload, target, parse_datetime):
     """
     if not isinstance(payload, dict) or payload.get("errors"):
         return None
-    trip = (payload.get("data") or {}).get("trip")
+    root = payload.get("data")
+    if not isinstance(root, dict):
+        return None
+    trip = root.get("trip")
     if not isinstance(trip, dict):
         return None
     patterns = trip.get("tripPatterns")

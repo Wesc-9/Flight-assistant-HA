@@ -65,8 +65,15 @@ class FlightCoordinator(DataUpdateCoordinator):
             record["status"] = "pending"
 
     async def async_save_all(self):
+        # Live route estimates are transient; recompute on restart.
+        # Do not persist frequently changing Entur/Waze data to disk.
+        persisted_bookings = {
+            uid: {key: value for key, value in record.items()
+                  if key != "transport"}
+            for uid, record in self.booking_records.items()
+        }
         await self.store.async_save({
-            "flights": self.flights, "booking_records": self.booking_records,
+            "flights": self.flights, "booking_records": persisted_bookings,
         })
 
     async def async_add_flight(self, flight_number, origin, scheduled, destination=None,
@@ -368,8 +375,15 @@ class FlightCoordinator(DataUpdateCoordinator):
                         "drive_leave_at": None,
                     }
             if new_record != current:
+                prior_persistent = {
+                    k: v for k, v in current.items() if k != "transport"
+                }
+                new_persistent = {
+                    k: v for k, v in new_record.items() if k != "transport"
+                }
                 self.booking_records[booking.subentry_id] = new_record
-                changed = True
+                if prior_persistent != new_persistent:
+                    changed = True
         if changed:
             await self.async_save_all()
         self.async_update_listeners()

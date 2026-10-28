@@ -269,6 +269,34 @@ class FlightCoordinator(DataUpdateCoordinator):
                         cached["reason"] = (
                             "aerodatabox_key_not_set" if not api_key else "lookup_deferred"
                         )
+                # Avinor is the preferred local status/gate/check-in source
+                # near departure. AeroDataBox schedule and flight number remain
+                # separate from these short-range operational updates.
+                flight = cached.get("flight")
+                depart = parse_datetime((flight or {}).get("scheduled"))
+                if (cached.get("status") == "found" and depart
+                        and flight.get("origin") and
+                        -timedelta(hours=3) <= depart - now <= timedelta(hours=24)):
+                    try:
+                        avinor_flights = await fetch_departures(
+                            self.hass, flight["origin"], hours_ahead=26
+                        )
+                        matched = match_departure(
+                            avinor_flights, number, depart
+                        )
+                        if matched:
+                            flight.update({
+                                "gate": matched.get("gate") or flight.get("gate"),
+                                "check_in": matched.get("check_in") or flight.get("check_in"),
+                                "expected": matched.get("expected"),
+                                "status": {
+                                    "A": "Arrived", "C": "Cancelled",
+                                    "D": "Departed", "E": "New time",
+                                }.get(matched.get("status_code"), flight.get("status")),
+                                "operational_data_source": "Avinor",
+                            })
+                    except RuntimeError:
+                        pass
                 results.append(cached)
 
             statuses = [r.get("status") for r in results]
@@ -285,6 +313,36 @@ class FlightCoordinator(DataUpdateCoordinator):
                               if status != "resolved" else
                               "Ruteinformasjon hentet fra tredjepart, ikke bekreftet PNR."
                           )}
+            # Departure suggestions only for the first upcoming leg.
+            upcoming = [
+                row["flight"] for row in results
+                if row.get("status") == "found"
+                and (flight := row.get("flight"))
+                and parse_datetime(flight.get("scheduled"))
+                and parse_datetime(flight["scheduled"]) >= now
+            ]
+            if upcoming:
+                first = min(upcoming, key=lambda f: f["scheduled"])
+                scheduled_time = parse_datetime(first["scheduled"])
+                if scheduled_time and scheduled_time - now < timedelta(hours=36):
+                    prefs = booking.data
+                    preferences = {
+                        "journey_type": prefs.get("journey_type", "domestic"),
+                        "checked_bag": prefs.get("checked_bag", False),
+                        "airport_margin_minutes": prefs.get("airport_margin_minutes", 90),
+                        "transport_mode": prefs.get("transport_mode", "both"),
+                        "departure_address": prefs.get("resolved_origin_address"),
+                        "departure_latitude": prefs.get("departure_latitude"),
+                        "departure_longitude": prefs.get("departure_longitude"),
+                    }
+                    await self._refresh_transport(
+                        "booking_" + booking.subentry_id,
+                        {**first, "preferences": preferences},
+                        scheduled_time, now
+                    )
+                    new_record["transport"] = self.transport.get(
+                        "booking_" + booking.subentry_id, {}
+                    )
             if new_record != current:
                 self.booking_records[booking.subentry_id] = new_record
                 changed = True

@@ -107,6 +107,13 @@ class NextFlightSensor(CoordinatorEntity, SensorEntity):
             (parse_datetime(flight.get("scheduled")), flight)
             for flight in self.coordinator.flights.values()
         ]
+        for item in self.coordinator.booking_records.values():
+            for record in item.get("segments", []):
+                if record.get("status") != "found":
+                    continue
+                flight = record.get("flight")
+                if flight:
+                    future.append((parse_datetime(flight.get("scheduled")), flight))
         future = [
             (when, flight) for when, flight in future
             if when and when >= now - timedelta(hours=6)
@@ -116,7 +123,7 @@ class NextFlightSensor(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self):
         flight = self._next
-        return flight["flight_number"] if flight else "No upcoming flights"
+        return flight.get("flight_number") if flight else "No upcoming flights"
 
     @property
     def extra_state_attributes(self):
@@ -127,7 +134,7 @@ class NextFlightSensor(CoordinatorEntity, SensorEntity):
         departure = parse_datetime(flight.get("scheduled"))
         airborne = flight.get("status") == "Departed"
         return {
-            **flight, **self.coordinator.transport.get(flight["id"], {}),
+            **flight, **self.coordinator.transport.get(flight.get("id"), {}),
             "count": len(self.coordinator.flights),
             "minutes_to_departure": (round((departure - dt_util.utcnow()).total_seconds() / 60)
                                      if departure else None),
@@ -185,6 +192,9 @@ class PendingBookingSensor(CoordinatorEntity, SensorEntity):
             "airport_margin": minutes_text(d.get("airport_margin_minutes", 90)),
             "origin_address": d.get("resolved_origin_address", "Home"),
             "segments": resolved,
+            "travel_suggestions": record.get("transport", {}).get("suggestions", []),
+            "drive_leave_at": record.get("transport", {}).get("drive_leave_at"),
+            "public_transport": record.get("transport", {}).get("public_transport"),
             "data_source": "AeroDataBox/Avinor" if resolved else None,
             "note": record.get("note", "Avventer gyldige flydata."),
         }

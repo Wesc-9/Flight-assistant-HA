@@ -4,11 +4,23 @@
 
 **[Åpne Flight Assistant direkte i HACS](https://my.home-assistant.io/redirect/hacs_repository/?owner=Wesc-9&repository=Flight-assistant-HA&category=integration)**
 
-**Current version: v0.1.4** (first release: v0.1.0) — one Home Assistant device per saved trip, three arrival-time travel proposals and per-trip travel preferences. Airline PNR lookup and actual position tracking are not yet implemented.
+**Current version: v0.1.5** (first release: v0.1.0) — one Home Assistant device per saved trip, three arrival-time travel proposals and per-trip travel preferences. Airline PNR lookup and actual position tracking are not yet implemented.
 
 An early, installable Home Assistant custom integration for following SAS and Norwegian flights, including **Avinor flight status**, **gate and check-in area** (when supplied), **Entur public transport suggestions** and optional **Waze driving departure suggestions**.
 
-> **Important:** Version 0.1.2 cannot retrieve an airline booking using only a PNR/booking reference and surname. SAS/Norwegian do not provide a verified, openly accessible passenger-booking API for this use. Do **not** enter PNRs, surnames or passwords in Home Assistant actions. No fabricated booking lookup, scraping of private endpoints or credential collection is included. The PNR-first workflow is a later development goal, contingent on an authorized method.
+> **Important:** Version 0.1.5 cannot retrieve an airline booking using only a PNR/booking reference and surname. SAS/Norwegian do not provide a verified, openly accessible passenger-booking API for this use. Do **not** enter PNRs, surnames or passwords in Home Assistant actions. No fabricated booking lookup, scraping of private endpoints or credential collection is included. The PNR-first workflow is a later development goal, contingent on an authorized method.
+
+## API source selection is shared (v0.1.5)
+
+The **first installation screen** configures which API/provider Flight Assistant will use, **once for the entire integration**. The three choices are:
+
+- **Automatic (recommended):** use AeroDataBox if a RapidAPI key is configured, or free Avinor lookup near departure without a key. Avinor can enrich operational details close to departure.
+- **Avinor only:** free Norwegian flight data within its schedule horizon; does not call AeroDataBox, even if a RapidAPI key has been stored previously.
+- **AeroDataBox + Avinor:** requires a RapidAPI key; AeroDataBox provides longer-range flight-number/date lookup, and Avinor enriches data near Norwegian departures.
+
+The provider selection and optional API key are stored **only in the parent Home Assistant config entry**, never on per-trip subentries, devices, or sensors. New and existing trips all share one provider setting. Trip registration asks only for flight details, passenger-independent travel preferences and arrival margins. No airline login or PNR is required.
+
+For an **existing installation**, do not delete the integration: go to **Settings → Devices & services → Flight Assistant → Configure** to choose/change provider and secret. Existing trips are kept. If you select AeroDataBox without a key, the form asks for one; Automatic and Avinor-only accept an empty key. This release has code and CI tests; it has not been end-to-end tested inside your HA OS installation.
 
 ## New installation wizard (v0.1.4)
 

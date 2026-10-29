@@ -15,6 +15,9 @@ from .parsing import normalize_flight, normalize_airport
 from datetime import date
 from homeassistant.config_entries import FlowType, SOURCE_USER, SubentryFlowContext
 from .trip_setup import airline_from_number, make_segment
+from .provider_settings import (
+    SOURCE_AUTO, SOURCE_AERODATABOX, VALID_SOURCES, source_needs_key,
+)
 
 def text_field(password=False):
     return selector.TextSelector(selector.TextSelectorConfig(
@@ -45,6 +48,11 @@ MODES = [
 ]
 TYPES = [("domestic", "Innenlands"), ("international", "Utenlands")]
 AIRLINES = {"sas": "SAS", "norwegian": "Norwegian", "wideroe": "Widerøe"}
+FLIGHT_DATA_SOURCES = [
+    ("auto", "Automatisk (AeroDataBox med nøkkel, ellers Avinor)"),
+    ("avinor", "Kun Avinor (gratis, opptil 14 dager frem)"),
+    ("aerodatabox", "AeroDataBox + Avinor (RapidAPI-nøkkel kreves)"),
+]
 
 
 def global_schema(values, include_provider=False):
@@ -57,14 +65,22 @@ def global_schema(values, include_provider=False):
             slider(0, 120, 5),
     }
     if include_provider:
+        fields[vol.Required(
+            "flight_data_source",
+            default=values.get("flight_data_source", SOURCE_AUTO),
+        )] = select(FLIGHT_DATA_SOURCES)
         # Blank means keep stored key; do not echo a saved secret into the form.
         fields[vol.Optional("aerodatabox_api_key")] = text_field(password=True)
         fields[vol.Optional("clear_aerodatabox_key", default=False)] = selector.BooleanSelector()
     return vol.Schema(fields)
 
-def api_schema():
-    """The first installation screen contains only the optional API key."""
+def api_schema(values=None):
+    """Provider selection and credentials live only in the parent config."""
+    values = values or {}
     return vol.Schema({
+        vol.Required("flight_data_source", default=values.get(
+            "flight_data_source", SOURCE_AUTO,
+        )): select(FLIGHT_DATA_SOURCES),
         vol.Optional("aerodatabox_api_key"): text_field(password=True),
     })
 
@@ -172,10 +188,22 @@ class FlightAssistantConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._abort_if_unique_id_configured()
 
         if user_input is not None:
+            source = user_input.get("flight_data_source", SOURCE_AUTO)
             key = (user_input.get("aerodatabox_api_key") or "").strip()
+            if source not in VALID_SOURCES:
+                return self.async_show_form(
+                    step_id="user", data_schema=api_schema(user_input),
+                    errors={"flight_data_source": "invalid_source"},
+                )
+            if source_needs_key(source) and not key:
+                return self.async_show_form(
+                    step_id="user", data_schema=api_schema(user_input),
+                    errors={"aerodatabox_api_key": "key_required"},
+                )
             return self.async_create_entry(
                 title="Flight Assistant",
                 data={
+                    "flight_data_source": source,
                     "aerodatabox_api_key": key,
                     "home_latitude": self.hass.config.latitude,
                     "home_longitude": self.hass.config.longitude,
@@ -218,6 +246,19 @@ class FlightAssistantOptionsFlow(AddressSteps, config_entries.OptionsFlow):
                 key = (values.pop("aerodatabox_api_key", "") or "").strip()
                 clear = values.pop("clear_aerodatabox_key", False)
                 values["aerodatabox_api_key"] = "" if clear else (key or existing_key)
+                source = values.get("flight_data_source", SOURCE_AUTO)
+                if source not in VALID_SOURCES:
+                    return self.async_show_form(
+                        step_id="init",
+                        data_schema=global_schema(values, include_provider=True),
+                        errors={"flight_data_source": "invalid_source"},
+                    )
+                if source_needs_key(source) and not values["aerodatabox_api_key"]:
+                    return self.async_show_form(
+                        step_id="init",
+                        data_schema=global_schema(values, include_provider=True),
+                        errors={"aerodatabox_api_key": "key_required"},
+                    )
                 values, found = await self._resolve_address(values, "home_address")
                 if found:
                     return await self.async_step_confirm_address()

@@ -19,6 +19,7 @@ from .planning import arrival_windows, driving_leave_at
 from .display import minutes_text
 from .discovery import classify_match, MAJOR_AIRPORTS
 from .aerodatabox import fetch_number_date, AeroDataBoxError
+from .provider_settings import effective_aerodatabox_key
 import asyncio
 from homeassistant.helpers import device_registry as dr
 
@@ -178,7 +179,10 @@ class FlightCoordinator(DataUpdateCoordinator):
         for removed in set(self.booking_records) - active:
             del self.booking_records[removed]
             changed = True
-        api_key = self.setting("aerodatabox_api_key", "")
+        api_key = effective_aerodatabox_key(
+            self.setting("flight_data_source", "auto"),
+            self.setting("aerodatabox_api_key", ""),
+        )
         # Strict upper bound on paid-tier-style calls per 3-min update (2 units each).
         # A successful lookup is cached for 6 days and never requested every poll.
         calls_this_cycle = 0

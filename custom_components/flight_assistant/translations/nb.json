@@ -3,13 +3,15 @@
   "config": {
     "step": {
       "user": {
-        "title": "1 av 2 · AeroDataBox API",
-        "description": "Først legger du inn RapidAPI-nøkkelen for AeroDataBox Basic. Velg gratisplanen hos RapidAPI og kontroller vilkårene. Du kan også la feltet stå tomt og fortsette med gratis Avinor-oppslag nær avreise. Når oppsettet lagres, åpnes registrering av første reise automatisk.",
+        "title": "1 av 2 · Datakilde og API",
+        "description": "Velg datakilde én gang for hele Flight Assistant. Alle reiser bruker denne innstillingen automatisk. AeroDataBox krever RapidAPI-nøkkel, mens Avinor fungerer uten nøkkel. Etter installasjon legger du til reisene separat.",
         "data": {
-          "aerodatabox_api_key": "AeroDataBox RapidAPI-nøkkel"
+          "flight_data_source": "Datakilde for alle reiser",
+          "aerodatabox_api_key": "AeroDataBox RapidAPI-nøkkel (ved behov)"
         },
         "data_description": {
-          "aerodatabox_api_key": "Valgfritt. Nøkkelen lagres lokalt i Home Assistant. Vi utfører ikke et betalt testoppslag under installasjonen."
+          "flight_data_source": "Automatisk anbefales: AeroDataBox brukes hvis du har nøkkel, mens Avinor brukes uten nøkkel.",
+          "aerodatabox_api_key": "Legges inn kun her, aldri på en reiseenhet. Bruk RapidAPIs gratisnivå; ingen nøkkel er nødvendig for Kun Avinor."
         }
       },
       "confirm_address": {
@@ -23,24 +25,28 @@
     "error": {
       "address_not_found": "Ingen adresser funnet. Prøv en mer nøyaktig adresse.",
       "address_unavailable": "Enturs adressesøk er ikke tilgjengelig. Prøv igjen.",
-      "invalid_address": "Skriv en gyldig adresse."
+      "invalid_address": "Skriv en gyldig adresse.",
+      "key_required": "AeroDataBox krever RapidAPI-nøkkel. Velg Automatisk eller Kun Avinor uten nøkkel.",
+      "invalid_source": "Velg en gyldig datakilde."
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "Innstillinger for Flight Assistant",
+        "title": "Flight Assistant · Felles innstillinger",
         "data": {
           "home_address": "Adresse (tom = Hjem)",
           "airport_margin_minutes": "Ønsket tid før flyavgang",
           "drive_buffer_minutes": "Ekstra tid for parkering og gange",
           "aerodatabox_api_key": "AeroDataBox RapidAPI-nøkkel (valgfri)",
-          "clear_aerodatabox_key": "Fjern eksisterende API-nøkkel"
+          "clear_aerodatabox_key": "Fjern eksisterende API-nøkkel",
+          "flight_data_source": "Datakilde (gjelder alle reiser)"
         },
-        "description": "Velg hjemmeadresse og tidsmargin. Valgfritt: legg inn RapidAPI-nøkkel fra AeroDataBox Basic ($0/mnd med kvote). Nøkkelen lagres i Home Assistant; kontroller at du bruker gratisplanen. Blankt felt beholder tidligere nøkkel.",
+        "description": "Endre datakilde og API-nøkkel for hele integrasjonen. Alle eksisterende og nye reiser arver valget. Blank API-nøkkel beholder lagret nøkkel. Øvrige felt gjelder hjemmeadresse og sikkerhetsmargin.",
         "data_description": {
           "aerodatabox_api_key": "Oppslag for fly mer enn 14 dager frem. RapidAPI Basic har 400 enheter/mnd, hard grense, mulig krav om betalingskort. Ingen nøkkel betyr kun Avinor kort tid før avgang.",
-          "clear_aerodatabox_key": "Huk av for å deaktivere AeroDataBox-oppslag og slette nøkkelen fra integrasjonens innstillinger."
+          "clear_aerodatabox_key": "Huk av for å deaktivere AeroDataBox-oppslag og slette nøkkelen fra integrasjonens innstillinger.",
+          "flight_data_source": "Kun Avinor deaktiverer AeroDataBox-oppslag selv om en nøkkel er lagret. Du kan bytte senere."
         }
       },
       "confirm_address": {
@@ -54,7 +60,9 @@
     "error": {
       "address_not_found": "Ingen adresser funnet. Prøv en mer nøyaktig adresse.",
       "address_unavailable": "Enturs adressesøk er ikke tilgjengelig. Prøv igjen.",
-      "invalid_address": "Skriv en gyldig adresse."
+      "invalid_address": "Skriv en gyldig adresse.",
+      "key_required": "AeroDataBox krever RapidAPI-nøkkel. Velg Automatisk eller Kun Avinor uten nøkkel.",
+      "invalid_source": "Velg en gyldig datakilde."
     }
   },
   "services": {

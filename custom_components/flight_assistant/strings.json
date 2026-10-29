@@ -3,13 +3,15 @@
   "config": {
     "step": {
       "user": {
-        "title": "Step 1 of 2 · AeroDataBox API",
-        "description": "Enter your AeroDataBox Basic RapidAPI key first. Choose the free plan and check the terms. You can leave this blank and use Avinor closer to departure. Adding the integration will automatically open the first-trip form.",
+        "title": "Step 1 of 2 · Data source and API",
+        "description": "Choose the flight data source once for all your Flight Assistant trips. AeroDataBox requires a RapidAPI key, while Avinor works without one. Trips do not ask for API settings.",
         "data": {
-          "aerodatabox_api_key": "AeroDataBox RapidAPI key"
+          "flight_data_source": "Flight data source for all trips",
+          "aerodatabox_api_key": "AeroDataBox RapidAPI key (if needed)"
         },
         "data_description": {
-          "aerodatabox_api_key": "Optional. Saved locally in Home Assistant. No paid test lookup is performed during setup."
+          "flight_data_source": "Recommended: Automatic uses AeroDataBox if a key exists; otherwise Avinor.",
+          "aerodatabox_api_key": "Enter this only once, never per trip. Use the free RapidAPI tier; Avinor requires no key."
         }
       },
       "confirm_address": {
@@ -23,24 +25,28 @@
     "error": {
       "address_not_found": "No addresses found.",
       "address_unavailable": "Entur address search is unavailable.",
-      "invalid_address": "Enter a valid address."
+      "invalid_address": "Enter a valid address.",
+      "key_required": "AeroDataBox requires a RapidAPI key. Select Automatic or Avinor-only without a key.",
+      "invalid_source": "Select a valid flight data source."
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "Flight Assistant preferences",
+        "title": "Flight Assistant · Shared settings",
         "data": {
           "home_address": "Address (blank = Home)",
           "airport_margin_minutes": "Minutes before scheduled departure",
           "drive_buffer_minutes": "Parking / walking buffer",
           "aerodatabox_api_key": "AeroDataBox RapidAPI key (optional)",
-          "clear_aerodatabox_key": "Remove existing API key"
+          "clear_aerodatabox_key": "Remove existing API key",
+          "flight_data_source": "Data source (all trips)"
         },
-        "description": "Configure departure address and margins. Optional: enter a RapidAPI AeroDataBox Basic key ($0/month with limits); confirm the free tier in RapidAPI. Blank key retains an existing key.",
+        "description": "Change the flight data source and API key for the entire integration. Existing and new trips share these settings. Blank key preserves an existing one.",
         "data_description": {
           "aerodatabox_api_key": "Long-range lookup. RapidAPI Basic: 400 units/month hard cap; registration may require payment card. No key: Avinor close to departure.",
-          "clear_aerodatabox_key": "Check to disable AeroDataBox and clear the saved key."
+          "clear_aerodatabox_key": "Check to disable AeroDataBox and clear the saved key.",
+          "flight_data_source": "Avinor-only prevents AeroDataBox requests even when a key is stored. You can change this later."
         }
       },
       "confirm_address": {
@@ -54,7 +60,9 @@
     "error": {
       "address_not_found": "No addresses found.",
       "address_unavailable": "Entur address search is unavailable.",
-      "invalid_address": "Enter a valid address."
+      "invalid_address": "Enter a valid address.",
+      "key_required": "AeroDataBox requires a RapidAPI key. Select Automatic or Avinor-only without a key.",
+      "invalid_source": "Select a valid flight data source."
     }
   },
   "services": {
